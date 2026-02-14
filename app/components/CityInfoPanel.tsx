@@ -1,13 +1,13 @@
 'use client';
 
+import Image from 'next/image';
 import { floodRiskColors, waterLevelColors } from '@/app/styles/colors';
 import { FloodData } from '@/app/types';
-import { AlertCircle, Droplets, TrendingUp } from 'lucide-react';
 
 interface InfoCardProps {
   label: string;
   value: string | number;
-  icon?: React.ReactNode;
+  icon?: string;
   color?: string;
   size?: 'small' | 'medium' | 'large';
 }
@@ -32,7 +32,11 @@ const InfoCard = ({ label, value, icon, color, size = 'medium' }: InfoCardProps)
         boxShadow: '0 2px 4px rgba(0, 0, 0, 0.08)',
       }}
     >
-      {icon && <div style={{ color, display: 'flex' }}>{icon}</div>}
+      {icon && (
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <Image src={icon} alt={label} width={20} height={20} style={{ filter: `invert(${color === '#6B7280' ? '0' : '100%'})` }} />
+        </div>
+      )}
       <div>
         <p style={{ fontSize: '12px', color: '#6B7280', fontWeight: '500' }}>
           {label}
@@ -81,14 +85,14 @@ export const CityInfoPanel = ({
         <InfoCard
           label="Flood Risk"
           value={floodData.floodRisk.toUpperCase()}
-          icon={<AlertCircle size={20} />}
+          icon="/raindrop.svg"
           color={getRiskColor(floodData.floodRisk)}
           size="small"
         />
         <InfoCard
           label="Water Level"
           value={`${floodData.waterLevel} cm`}
-          icon={<Droplets size={20} />}
+          icon="/water_level.svg"
           color={getWaterLevelColor(floodData.waterLevelStatus)}
           size="small"
         />
@@ -152,7 +156,7 @@ export const CityInfoPanel = ({
             gap: '8px',
           }}
         >
-          <TrendingUp size={18} color="#0EA5E9" />
+          <Image src="/wind.svg" alt="Forecast" width={18} height={18} />
           Forecast
         </h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

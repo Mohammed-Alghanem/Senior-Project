@@ -1,7 +1,9 @@
 "use client";
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Logo } from './Logo';
+import { useState } from 'react';
 
 interface HeaderProps {
   title?: string;
@@ -9,42 +11,143 @@ interface HeaderProps {
 }
 
 export const Header = ({ title, subtitle }: HeaderProps) => {
+  const [showContactPopup, setShowContactPopup] = useState(false);
+
   return (
-    <header style={{ padding: 18 }}>
+    <>
+    <header className="header-responsive" style={{ padding: 18 }}>
       <div style={{ maxWidth: 1400, margin: '0 auto' }}>
         <div className="topbar card" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 180 }}>
+          <div className="logo-container" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 180 }}>
             <Link href="/" style={{ textDecoration: 'none' }} aria-label="Home">
-              <div style={{ padding: 6, borderRadius: 12, background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center' }}>
+              <div style={{ padding: 6, borderRadius: 12, background: 'transparent', display: 'flex', alignItems: 'center' }}>
                 <Logo />
               </div>
             </Link>
           </div>
 
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-            <div style={{ width: '78%' }}>
-              <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 12 }} className="search-input card">
+          <div className="search-container" style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', paddingLeft: 12 }}>
+            <div style={{ width: '95%' }}>
+                <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 12, backgroundColor: 'transparent' }} className="search-input card">
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="none" aria-hidden>
                   <path d="M21 21l-4.35-4.35" stroke="rgba(156,163,175,0.9)" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" />
                   <circle cx="11" cy="11" r="6" stroke="rgba(156,163,175,0.9)" strokeWidth={1.4} />
                 </svg>
-                <input aria-label="Search" placeholder="Search for cities" className="search-input" />
-              </div>
+                <input aria-label="Search" placeholder="Search for cities" className="search-input" style={{ flex: 1, backgroundColor: 'transparent', border: 'none', color: 'rgba(230,238,248,0.95)' }} />
+                </div>
             </div>
           </div>
 
-          <div style={{ minWidth: 120, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-            {/* Dashboard link removed per design — kept Contacts */}
-            <div style={{ color: 'rgba(230,238,248,0.95)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="rgba(156,163,175,0.9)" strokeWidth={1.2} />
-                <path d="M12 7v5l3 3" stroke="rgba(156,163,175,0.9)" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span style={{ opacity: 0.95 }}>Contacts</span>
-            </div>
+          <div className="contacts-container" style={{ minWidth: 120, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginRight: 12 }}>
+            <button 
+              onClick={() => setShowContactPopup(true)}
+              style={{ 
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(230,238,248,0.95)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 8,
+                cursor: 'pointer',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <Image
+                src="/contact.svg"
+                alt="Contacts"
+                width={18}
+                height={18}
+              />
+              <span className="contacts-text" style={{ opacity: 0.95 }}>Contacts</span>
+            </button>
           </div>
         </div>
       </div>
     </header>
+
+    {/* Contact Popup Modal */}
+    {showContactPopup && (
+      <div 
+        onClick={() => setShowContactPopup(false)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)',
+        }}
+      >
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="card"
+          style={{
+            maxWidth: 400,
+            width: '90%',
+            padding: 24,
+            position: 'relative',
+          }}
+        >
+          <button
+            onClick={() => setShowContactPopup(false)}
+            style={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(230,238,248,0.7)',
+              fontSize: 24,
+              cursor: 'pointer',
+              padding: 4,
+              lineHeight: 1,
+            }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+            <Image
+              src="/contact.svg"
+              alt="Contact"
+              width={32}
+              height={32}
+            />
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: 'rgba(230,238,248,0.95)' }}>Contact Information</h2>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+            {/* Emergency Section */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 13, color: 'rgba(156,163,175,0.9)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Emergency Hotline</div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: 'rgba(230,238,248,0.95)' }}>997</div>
+            </div>
+            
+            {/* Divider */}
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+            
+            {/* Support Team Section */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 13, color: 'rgba(156,163,175,0.9)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Support Team</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 600, color: 'rgba(230,238,248,0.95)' }}>050-XXX-XXXX</div>
+                <div style={{ fontSize: 16, fontWeight: 500, color: 'rgba(156,163,175,0.95)' }}>support@floodsense.sa</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };

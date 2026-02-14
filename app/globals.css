@@ -15,6 +15,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: #050506;
   color: #e6eef8;
+  overflow-x: hidden;
 }
 
 :root {
@@ -44,15 +45,33 @@ body {
   background: rgba(252,252,252,0.20);
   border-radius: 16px;
   padding: 18px;
-  /* Whiteish outer glow as primary shadow; slightly stronger opacity
-     but reduced spread to keep the fade closer to the box */
+  /* Whiteish outer glow as primary shadow; reduced vertical offset for better alignment */
   box-shadow:
-    0 18px 36px rgba(252,252,252,0.10), /* main white glow (stronger) */
-    0 6px 14px rgba(252,252,252,0.08),  /* secondary white glow (tighter) */
-    0 1px 6px rgba(0,0,0,0.28);         /* small dark anchor */
+    0 4px 24px rgba(252,252,252,0.10), /* main white glow (centered) */
+    0 2px 10px rgba(252,252,252,0.08),  /* secondary white glow (tight) */
+    0 0px 4px rgba(0,0,0,0.28);         /* small dark anchor */
   /* use a subtle black stroke for the outside edge */
   border: 1px solid rgba(0,0,0,0.6);
   backdrop-filter: blur(6px);
+}
+
+/* Reduce shadows on mobile */
+@media (max-width: 768px) {
+  .card {
+    box-shadow:
+      0 2px 18px rgba(252,252,252,0.06),
+      0 1px 8px rgba(252,252,252,0.04),
+      0 0px 3px rgba(0,0,0,0.2);
+  }
+}
+
+@media (max-width: 480px) {
+  .card {
+    box-shadow:
+      0 1px 12px rgba(252,252,252,0.04),
+      0 0px 5px rgba(252,252,252,0.02),
+      0 0px 2px rgba(0,0,0,0.15);
+  }
 }
 
 /* Small search input inside the topbar should not cast the large outer shadow */
@@ -141,6 +160,18 @@ body {
   align-items: start;
 }
 
+@media (min-width: 1201px) {
+  .dashboard-grid {
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .right-stack {
   display: grid;
   grid-auto-rows: min-content;
@@ -149,6 +180,100 @@ body {
 
 .rounded-container {
   border-radius: 14px;
+}
+
+.dashboard-sidebar {
+  display: grid;
+  gap: 20px;
+  grid-auto-rows: min-content;
+}
+
+.dashboard-section {
+  margin-top: 20px;
+}
+
+.two-panel-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.two-panel-container > .panel-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+@media (max-width: 900px) {
+  .two-panel-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.air-conditions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 600px) {
+  .air-conditions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.system-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.system-status-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.system-status-grid > :nth-child(2) {
+  justify-self: end;
+}
+
+.system-status-grid > :nth-child(3) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 300px;
+}
+
+@media (max-width: 900px) {
+  .system-status-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .system-status-grid > :nth-child(2) {
+    justify-self: start;
+  }
+  
+  .system-status-grid > :nth-child(3) {
+    grid-column: 1;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 600px) {
+  .system-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hour-cards-container {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 /* Responsive map frame used on the home page */
@@ -165,35 +290,248 @@ body {
   justify-content: center;
 }
 
-/* Adapt grid and card sizes on smaller screens */
+/* ============================================
+   RESPONSIVE DESIGN - Mobile & Tablet
+   ============================================ */
+
+/* Tablet - Large (768px - 1024px) */
 @media (max-width: 1100px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
+  .dashboard-sidebar {
+    gap: 16px !important;
   }
 
   .card {
-    padding: 12px;
+    padding: 14px;
     border-radius: 12px;
   }
 
-  .panel-inner { padding: 10px; }
+  .panel-inner { 
+    padding: 12px; 
+  }
 }
 
+/* Tablet - Small & Mobile - Large (481px - 768px) */
 @media (max-width: 768px) {
+  .header-responsive {
+    padding: 12px !important;
+  }
+
+  .logo-container {
+    min-width: 120px !important;
+    gap: 8px !important;
+  }
+
+  .search-container {
+    padding-left: 6px !important;
+  }
+
+  .contacts-container {
+    min-width: 80px !important;
+    margin-right: 6px !important;
+  }
+
+  .contacts-text {
+    display: none !important;
+  }
+
+  .topbar {
+    padding: 8px !important;
+    gap: 8px !important;
+  }
+
+  .search-input { 
+    height: 40px; 
+  }
+
+  .panel-title { 
+    font-size: 15px; 
+  }
+
+  .dashboard-grid { 
+    gap: 16px;
+    /* Reorder on mobile: sidebar first, then main content */
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+
+  .main-content {
+    order: 2;
+    width: 100% !important;
+  }
+
+  .dashboard-sidebar {
+    order: 1;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  .dashboard-section {
+    margin-top: 16px;
+  }
+
+  /* Show countdown first on mobile */
+  .countdown-card {
+    order: 1;
+  }
+
+  .forecast-card {
+    order: 2;
+  }
+
+  .stats-card {
+    order: 3;
+  }
+
   .map-frame {
     width: 96vw;
     aspect-ratio: 4 / 3;
     max-height: 70vh;
   }
 
-  .search-input { height: 40px; }
-  .panel-title { font-size: 16px; }
-  .dashboard-grid { gap: 12px; }
+  main {
+    padding: 0 8px !important;
+    margin: 12px auto !important;
+    max-width: 100% !important;
+  }
+
+  .dashboard-main {
+    max-width: 100% !important;
+  }
+
+  .card {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .dashboard-grid {
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
+/* Mobile - Small (320px - 480px) */
 @media (max-width: 480px) {
-  :root { --panel: #2b2d2f; }
-  .map-frame { aspect-ratio: 1 / 1; max-height: 60vh; }
-  .card { padding: 10px; border-radius: 10px; }
-  .search-input { height: 36px; }
+  :root { 
+    --panel: #2b2d2f; 
+  }
+
+  .header-responsive {
+    padding: 8px !important;
+  }
+
+  /* Hide FloodSense text on mobile, keep only logo */
+  .logo-text {
+    display: none !important;
+  }
+
+  .logo-container {
+    min-width: 40px !important;
+    gap: 0 !important;
+  }
+
+  .logo-container a > div {
+    padding: 4px !important;
+  }
+
+  .topbar {
+    gap: 6px !important;
+    padding: 6px !important;
+  }
+
+  .search-container {
+    padding-left: 4px !important;
+  }
+
+  .search-container > div {
+    width: 100% !important;
+  }
+
+  .contacts-container {
+    min-width: auto !important;
+    margin-right: 4px !important;
+  }
+
+  .contacts-text {
+    display: none !important;
+  }
+
+  .search-input { 
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .card { 
+    padding: 10px; 
+    border-radius: 10px; 
+  }
+
+  .panel-inner {
+    padding: 8px;
+    border-radius: 8px;
+  }
+
+  .panel-title {
+    font-size: 14px;
+  }
+
+  .map-frame { 
+    aspect-ratio: 1 / 1; 
+    max-height: 60vh; 
+  }
+
+  main {
+    padding: 0 6px !important;
+    margin: 6px auto !important;
+    max-width: 100% !important;
+  }
+
+  .dashboard-main {
+    max-width: 100% !important;
+    padding: 0 6px !important;
+  }
+
+  .dashboard-grid {
+    gap: 12px;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .card {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .main-content {
+    order: 2;
+    width: 100% !important;
+  }
+
+  .dashboard-sidebar {
+    order: 1;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .dashboard-section {
+    margin-top: 12px;
+  }
+
+  .countdown-card {
+    order: 1;
+  }
+
+  .forecast-card {
+    order: 2;
+  }
+
+  .stats-card {
+    order: 3;
+  }
 }
