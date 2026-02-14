@@ -1,26 +1,199 @@
-@import "tailwindcss";
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #050506;
+  color: #e6eef8;
+}
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #050506;
+  /* card and inner panel tones adjusted for the grayish look */
+  --panel: #2f3336; /* outer card */
+  --panel-2: #3a3d40; /* inner recessed panels (slightly lighter) */
+  --muted: rgba(156,163,175,0.9);
+  --text: #E6EEF8;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@import 'leaflet/dist/leaflet.css';
+
+#__next {
+  height: 100%;
+  width: 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Topbar */
+.topbar {
+  width: 100%;
+  padding: 14px 0;
+}
+
+.card {
+  /* translucent card using #FCFCFC at 20% opacity (requested) */
+  background: rgba(252,252,252,0.20);
+  border-radius: 16px;
+  padding: 18px;
+  /* Whiteish outer glow as primary shadow; slightly stronger opacity
+     but reduced spread to keep the fade closer to the box */
+  box-shadow:
+    0 18px 36px rgba(252,252,252,0.10), /* main white glow (stronger) */
+    0 6px 14px rgba(252,252,252,0.08),  /* secondary white glow (tighter) */
+    0 1px 6px rgba(0,0,0,0.28);         /* small dark anchor */
+  /* use a subtle black stroke for the outside edge */
+  border: 1px solid rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+}
+
+/* Small search input inside the topbar should not cast the large outer shadow */
+.topbar .search-input.card,
+.search-input.card {
+  box-shadow: none;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(0,0,0,0.6);
+}
+.panel-title {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.panel-inner {
+  /* inner panels are darker than the outer translucent card to ensure
+     good contrast for text and controls */
+  background: rgba(0,0,0,0.28);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: none;
+  border: 1px solid rgba(0,0,0,0.55);
+  color: var(--text);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* Leaflet custom styles */
+.leaflet-container {
+  border-radius: 12px;
+}
+
+.leaflet-tooltip.city-label {
+  background: rgba(10, 12, 15, 0.95);
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.06);
+  color: #e5e7eb;
+  padding: 4px 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.65);
+}
+
+.leaflet-tooltip.city-label::before {
+  border-top-color: rgba(10, 12, 15, 0.95);
+}
+
+/* Scroll bar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.06);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.search-input {
+  height: 44px;
+  border-radius: 24px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+  border: none;
+  outline: none;
+}
+
+.forecast-row { display:flex; gap:10px; align-items:center; }
+.two-column { display:grid; grid-template-columns: 1fr 1fr; gap:12px }
+.right-stack { display:grid; grid-auto-rows: min-content; gap:20px }
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 20px;
+  align-items: start;
+}
+
+.right-stack {
+  display: grid;
+  grid-auto-rows: min-content;
+  gap: 20px;
+}
+
+.rounded-container {
+  border-radius: 14px;
+}
+
+/* Responsive map frame used on the home page */
+.map-frame {
+  width: min(1100px, 90vw);
+  aspect-ratio: 1000 / 720;
+  max-height: 80vh;
+  margin: 0 auto;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Adapt grid and card sizes on smaller screens */
+@media (max-width: 1100px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
   }
+
+  .card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .panel-inner { padding: 10px; }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (max-width: 768px) {
+  .map-frame {
+    width: 96vw;
+    aspect-ratio: 4 / 3;
+    max-height: 70vh;
+  }
+
+  .search-input { height: 40px; }
+  .panel-title { font-size: 16px; }
+  .dashboard-grid { gap: 12px; }
+}
+
+@media (max-width: 480px) {
+  :root { --panel: #2b2d2f; }
+  .map-frame { aspect-ratio: 1 / 1; max-height: 60vh; }
+  .card { padding: 10px; border-radius: 10px; }
+  .search-input { height: 36px; }
 }
