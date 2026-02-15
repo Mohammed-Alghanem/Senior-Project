@@ -130,7 +130,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
             {/* Emergency Section */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 13, color: 'rgba(156,163,175,0.9)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Emergency Hotline</div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: 'rgba(230,238,248,0.95)' }}>997</div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: 'rgba(230,238,248,0.95)' }}>911</div>
             </div>
             
             {/* Divider */}
