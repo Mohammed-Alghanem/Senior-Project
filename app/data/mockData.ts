@@ -172,7 +172,7 @@ export const mockCitiesData: City[] = [
     population: 510000,
     area: 280,
     floodData: {
-      floodRisk: 'warning',
+      floodRisk: 'high',
       waterLevel: 38,
       waterLevelStatus: 'high',
       affectedAreas: 6,
