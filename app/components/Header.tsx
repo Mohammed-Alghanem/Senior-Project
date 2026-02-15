@@ -141,7 +141,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
               <div style={{ fontSize: 13, color: 'rgba(156,163,175,0.9)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Support Team</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
                 <div style={{ fontSize: 20, fontWeight: 600, color: 'rgba(230,238,248,0.95)' }}>050-XXX-XXXX</div>
-                <div style={{ fontSize: 16, fontWeight: 500, color: 'rgba(156,163,175,0.95)' }}>support@floodsense.sa</div>
+                <div style={{ fontSize: 16, fontWeight: 500, color: 'rgba(156,163,175,0.95)' }}>support@floodsense.dev</div>
               </div>
             </div>
           </div>
