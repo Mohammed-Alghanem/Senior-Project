@@ -37,7 +37,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
           <div className="logo-container" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 180 }}>
             <Link href="/" style={{ textDecoration: 'none' }} aria-label="Home">
               <div style={{ padding: 6, borderRadius: 12, background: 'transparent', display: 'flex', alignItems: 'center' }}>
-                <Logo />
+                <Logo format="svg" />
               </div>
             </Link>
           </div>

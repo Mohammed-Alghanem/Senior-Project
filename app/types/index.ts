@@ -1,5 +1,5 @@
 export interface FloodData {
-  floodRisk: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  floodRisk: 'none' | 'low' | 'medium' | 'high';
   waterLevel: number; // cm above normal
   waterLevelStatus: 'veryLow' | 'low' | 'normal' | 'high' | 'critical';
   affectedAreas: number; // number of affected areas
@@ -13,6 +13,14 @@ export interface FloodData {
   };
 }
 
+export interface Area {
+  id: string;
+  name: string;
+  floodRisk: 'none' | 'low' | 'medium' | 'high';
+  waterLevel: number; // cm above normal
+  affectedPopulation: number;
+}
+
 export interface City {
   id: string;
   name: string;
@@ -21,6 +29,7 @@ export interface City {
   longitude: number;
   population: number;
   area: number; // square km
+  areas: Area[]; // districts/neighborhoods within the city
   floodData: FloodData;
 }
 

@@ -570,9 +570,8 @@ body {
 
 /* Responsive map frame used on the home page */
 .map-frame {
-  width: min(1100px, 90vw);
-  aspect-ratio: 1000 / 720;
-  max-height: 80vh;
+  width: 100%;
+  height: 100%;
   margin: 0 auto;
   border-radius: 20px;
   overflow: hidden;
@@ -580,6 +579,22 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Desktop - show SVG map with aspect ratio */
+@media (min-width: 1025px) {
+  .map-frame {
+    width: min(1100px, 90vw);
+    aspect-ratio: 1000 / 720;
+    max-height: 80vh;
+    margin: 0 auto;
+  }
+
+  main {
+    padding: 24px !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
 }
 
 /* ============================================
@@ -688,12 +703,6 @@ body {
 
   .stats-card {
     order: 3;
-  }
-
-  .map-frame {
-    width: 96vw;
-    aspect-ratio: 4 / 3;
-    max-height: 70vh;
   }
 
   main {
@@ -881,11 +890,6 @@ body {
 
   .panel-title {
     font-size: 14px;
-  }
-
-  .map-frame { 
-    aspect-ratio: 1 / 1; 
-    max-height: 60vh; 
   }
 
   main {

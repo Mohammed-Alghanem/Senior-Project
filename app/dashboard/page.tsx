@@ -4,10 +4,7 @@ import { Header } from '@/app/components/Header';
 import { Container } from '@/app/components/Layout';
 import Image from 'next/image';
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { mockDashboardData } from '@/app/data/mockData';
-
-const Map = dynamic(() => import('@/app/components/Map').then((m) => m.Map), { ssr: false });
 
 function HourCard({ t, temp }: { t: string; temp: number }) {
   return (
@@ -171,10 +168,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div className="dashboard-section">
-              <Map cities={data.cities} />
             </div>
 
             <div className="dashboard-section">
