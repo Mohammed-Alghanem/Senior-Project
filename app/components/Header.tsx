@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Logo } from './Logo';
 import { useState } from 'react';
+import { UserCircle2 } from 'lucide-react';
 
 interface HeaderProps {
   title?: string;
@@ -12,6 +13,21 @@ interface HeaderProps {
 
 export const Header = ({ title, subtitle }: HeaderProps) => {
   const [showContactPopup, setShowContactPopup] = useState(false);
+  const topbarActionStyle = {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(230,238,248,0.95)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    cursor: 'pointer',
+    padding: '6px 12px',
+    borderRadius: '8px',
+    transition: 'background 0.2s',
+    fontFamily: 'inherit',
+    fontSize: 'inherit',
+    lineHeight: 1.2,
+  } as const;
 
   return (
     <>
@@ -38,21 +54,10 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
             </div>
           </div>
 
-          <div className="contacts-container" style={{ minWidth: 120, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginRight: 12 }}>
+          <div className="contacts-container" style={{ minWidth: 240, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginRight: 0, gap: 8 }}>
             <button 
               onClick={() => setShowContactPopup(true)}
-              style={{ 
-                background: 'transparent',
-                border: 'none',
-                color: 'rgba(230,238,248,0.95)', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 8,
-                cursor: 'pointer',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                transition: 'background 0.2s',
-              }}
+              style={topbarActionStyle}
               onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
@@ -64,6 +69,20 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
               />
               <span className="contacts-text" style={{ opacity: 0.95 }}>Contacts</span>
             </button>
+
+            <Link
+              href="/profile"
+              style={{
+                ...topbarActionStyle,
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              aria-label="Profile"
+            >
+              <UserCircle2 size={18} color="#AAAAAA" />
+              <span className="contacts-text" style={{ opacity: 0.95 }}>Profile</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -92,7 +111,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
           className="card"
           style={{
             maxWidth: 400,
-            width: '90%',
+            width: 'min(400px, calc(100vw - 24px))',
             padding: 24,
             position: 'relative',
           }}
@@ -130,7 +149,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
             {/* Emergency Section */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 13, color: 'rgba(156,163,175,0.9)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Emergency Hotline</div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: 'rgba(230,238,248,0.95)' }}>997</div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: 'rgba(230,238,248,0.95)' }}>911</div>
             </div>
             
             {/* Divider */}

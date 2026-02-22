@@ -21,6 +21,7 @@ body {
   background: #050506;
   color: #e6eef8;
   overflow-x: hidden;
+  scrollbar-gutter: stable both-edges;
 }
 
 :root {
@@ -152,8 +153,285 @@ body {
   outline: none;
 }
 
+.search-input.card svg {
+  flex-shrink: 0;
+  min-width: 18px;
+}
+
 .search-input::placeholder {
   color: rgba(230, 238, 248, 0.35);
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+}
+
+.auth-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: min(560px, 100%);
+}
+
+.auth-logo-top {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  display: flex;
+  justify-content: center;
+  transform: translateX(-50%) scale(1.22);
+  transform-origin: center;
+}
+
+.auth-card {
+  width: min(560px, 92vw);
+  padding: 30px;
+}
+
+.auth-title {
+  font-size: 32px !important;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.auth-subtitle {
+  text-align: center;
+  margin-bottom: 24px;
+  font-size: 16px;
+}
+
+.auth-header-divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.18), rgba(255,255,255,0));
+  margin: 0 0 18px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-input {
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.28);
+  color: var(--text);
+  outline: none;
+  padding: 0 14px;
+  font-size: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 6px 18px rgba(0,0,0,0.28);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.auth-input:focus {
+  border-color: rgba(156,163,175,0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 0 0 2px rgba(156,163,175,0.16),
+    0 10px 24px rgba(0,0,0,0.34);
+}
+
+.auth-input::placeholder {
+  color: rgba(230, 238, 248, 0.58);
+}
+
+.auth-button {
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.6);
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.auth-button:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+.auth-step-summary {
+  margin-top: 2px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+}
+
+.auth-email-preview {
+  color: rgba(230,238,248,0.72);
+  font-size: 17px;
+  text-align: center;
+}
+
+.auth-retry-button {
+  position: absolute;
+  right: 0;
+  border: none;
+  background: transparent;
+  color: rgba(230,238,248,0.88);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-retry-button:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.auth-otp-input {
+  margin-top: 14px;
+}
+
+.auth-error {
+  color: rgba(255, 160, 160, 0.95);
+  font-size: 14px;
+}
+
+.profile-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-main {
+  max-width: 1400px;
+  margin: 22px auto;
+  width: 100%;
+  padding: 0 18px;
+}
+
+.profile-card {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.profile-title {
+  font-size: 30px !important;
+  margin-bottom: 20px;
+}
+
+.profile-inner {
+  display: grid;
+  gap: 22px;
+  width: 100%;
+  padding: 24px;
+  justify-items: center;
+}
+
+.profile-field {
+  text-align: center;
+}
+
+.profile-label {
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+
+.profile-value {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.profile-value-secondary {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.profile-signout-row {
+  margin-top: 20px;
+}
+
+.profile-signout-button {
+  height: 48px;
+  border-radius: 10px;
+  border: 1px solid rgba(127, 29, 29, 0.9);
+  background: rgba(220, 38, 38, 0.20);
+  color: rgba(254, 226, 226, 0.98);
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+}
+
+.profile-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  box-sizing: border-box;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.profile-modal-card {
+  max-width: 460px;
+  width: min(460px, 100%);
+  padding: 26px;
+}
+
+.profile-modal-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: rgba(230,238,248,0.95);
+  margin-bottom: 10px;
+}
+
+.profile-modal-text {
+  margin-bottom: 22px;
+  font-size: 15px;
+}
+
+.profile-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.profile-modal-button {
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.6);
+  background: rgba(255,255,255,0.08);
+  color: rgba(230,238,248,0.95);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 14px;
+}
+
+.profile-modal-button-danger {
+  border: 1px solid rgba(127, 29, 29, 0.9);
+  background: rgba(220, 38, 38, 0.20);
+  color: rgba(254, 226, 226, 0.98);
 }
 
 .forecast-row { display:flex; gap:10px; align-items:center; }
@@ -331,17 +609,30 @@ body {
   }
 
   .logo-container {
-    min-width: 120px !important;
+    min-width: 96px !important;
     gap: 8px !important;
   }
 
   .search-container {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
     padding-left: 6px !important;
   }
 
+  .search-container > div {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .search-input.card {
+    min-width: 120px;
+  }
+
   .contacts-container {
-    min-width: 80px !important;
-    margin-right: 6px !important;
+    min-width: fit-content !important;
+    margin-right: 0 !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
   }
 
   .contacts-text {
@@ -425,6 +716,91 @@ body {
     width: 100%;
     max-width: 100%;
   }
+
+  .auth-page {
+    padding: 20px !important;
+  }
+
+  .auth-logo-top {
+    top: 56px;
+    transform: translateX(-50%) scale(1.18);
+  }
+
+  .auth-shell {
+    width: min(560px, 100%);
+  }
+
+  .auth-card {
+    width: min(560px, 92vw);
+    max-width: 560px;
+    padding: 30px;
+    margin-top: 0;
+  }
+
+  .auth-title {
+    font-size: 31px !important;
+  }
+
+  .auth-subtitle {
+    font-size: 16px;
+    margin-bottom: 18px;
+  }
+
+  .auth-input,
+  .auth-button {
+    height: 52px;
+    font-size: 16px;
+  }
+
+  .profile-main {
+    margin: 0 auto;
+    flex: 1;
+    min-height: calc(100vh - 110px);
+    padding: 0 10px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .profile-card {
+    width: min(680px, 100%) !important;
+    max-width: 680px;
+    padding: 22px;
+    margin: 0 auto;
+    transform: translateY(-28px);
+  }
+
+  .profile-title {
+    font-size: 25px !important;
+    margin-bottom: 14px;
+  }
+
+  .profile-inner {
+    padding: 18px;
+    gap: 18px;
+  }
+
+  .profile-value {
+    font-size: 19px;
+  }
+
+  .profile-value-secondary {
+    font-size: 16px;
+  }
+
+  .profile-signout-button {
+    height: 46px;
+    font-size: 16px;
+    padding: 0 16px;
+  }
+
+  .profile-modal-overlay {
+    padding: 0 14px;
+  }
+
+  .profile-modal-card {
+    width: min(460px, 100%);
+  }
 }
 
 /* Mobile - Small (320px - 480px) */
@@ -437,12 +813,22 @@ body {
     padding: 8px !important;
   }
 
-  /* Hide FloodSense text on mobile, keep only logo */
+  /* Keep FloodSense text visible by default on mobile (non-header contexts) */
   .logo-text {
-    display: none !important;
+    display: inline !important;
   }
 
   .logo-container {
+    min-width: 120px !important;
+    gap: 6px !important;
+  }
+
+  /* Header-only mobile behavior: icon only, no text */
+  .header-responsive .logo-text {
+    display: none !important;
+  }
+
+  .header-responsive .logo-container {
     min-width: 40px !important;
     gap: 0 !important;
   }
@@ -457,16 +843,21 @@ body {
   }
 
   .search-container {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
     padding-left: 4px !important;
   }
 
   .search-container > div {
     width: 100% !important;
+    min-width: 0 !important;
   }
 
   .contacts-container {
-    min-width: auto !important;
-    margin-right: 4px !important;
+    min-width: fit-content !important;
+    margin-right: 0 !important;
+    gap: 2px !important;
+    flex-shrink: 0 !important;
   }
 
   .contacts-text {
@@ -479,7 +870,7 @@ body {
   }
 
   .card { 
-    padding: 10px; 
+    padding: 12px; 
     border-radius: 10px; 
   }
 
@@ -548,5 +939,122 @@ body {
 
   .stats-card {
     order: 3;
+  }
+
+  .auth-page {
+    padding: 14px 8px !important;
+  }
+
+  .auth-logo-top {
+    top: 18px;
+    transform: translateX(-50%) scale(0.94);
+  }
+
+  .auth-shell {
+    width: 100%;
+  }
+
+  .auth-card {
+    width: calc(100% - 2px);
+    max-width: 100%;
+    padding: 18px;
+    margin-top: 54px;
+  }
+
+  .auth-title {
+    font-size: 21px !important;
+  }
+
+  .auth-subtitle {
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+
+  .auth-form {
+    gap: 12px;
+  }
+
+  .auth-input,
+  .auth-button {
+    height: 44px;
+    font-size: 14px;
+  }
+
+  .auth-email-preview {
+    font-size: 14px;
+  }
+
+  .profile-main {
+    padding: 0 6px !important;
+    min-height: calc(100vh - 96px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .profile-card {
+    width: min(520px, 100%) !important;
+    max-width: 520px;
+    padding: 16px;
+    margin: 0 auto;
+    transform: translateY(-22px);
+  }
+
+  .profile-title {
+    font-size: 21px !important;
+  }
+
+  .profile-inner {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .profile-label {
+    font-size: 12px;
+  }
+
+  .profile-value {
+    font-size: 18px;
+  }
+
+  .profile-value-secondary {
+    font-size: 15px;
+  }
+
+  .profile-signout-row {
+    margin-top: 12px;
+  }
+
+  .profile-signout-button {
+    height: 44px;
+    font-size: 15px;
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .profile-modal-card {
+    width: 100%;
+    max-width: 100%;
+    padding: 16px;
+  }
+
+  .profile-modal-title {
+    font-size: 20px;
+  }
+
+  .profile-modal-text {
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  .profile-modal-actions {
+    justify-content: stretch;
+  }
+
+  .profile-modal-button {
+    flex: 1;
+    height: 42px;
+    font-size: 15px;
+    padding: 0 10px;
   }
 }
