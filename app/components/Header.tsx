@@ -28,7 +28,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
 
           <div className="search-container" style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', paddingLeft: 12 }}>
             <div style={{ width: '95%' }}>
-                <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 12, backgroundColor: 'transparent' }} className="search-input card">
+                <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 4, backgroundColor: 'transparent' }} className="search-input card">
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="none" aria-hidden>
                   <path d="M21 21l-4.35-4.35" stroke="rgba(156,163,175,0.9)" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" />
                   <circle cx="11" cy="11" r="6" stroke="rgba(156,163,175,0.9)" strokeWidth={1.4} />
@@ -130,7 +130,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
             {/* Emergency Section */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 13, color: 'rgba(156,163,175,0.9)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Emergency Hotline</div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: 'rgba(230,238,248,0.95)' }}>911</div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: 'rgba(230,238,248,0.95)' }}>997</div>
             </div>
             
             {/* Divider */}
@@ -141,7 +141,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
               <div style={{ fontSize: 13, color: 'rgba(156,163,175,0.9)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Support Team</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
                 <div style={{ fontSize: 20, fontWeight: 600, color: 'rgba(230,238,248,0.95)' }}>050-XXX-XXXX</div>
-                <div style={{ fontSize: 16, fontWeight: 500, color: 'rgba(156,163,175,0.95)' }}>support@floodsense.dev</div>
+                <div style={{ fontSize: 16, fontWeight: 500, color: 'rgba(156,163,175,0.95)' }}>support@floodsense.sa</div>
               </div>
             </div>
           </div>

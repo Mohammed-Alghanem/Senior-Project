@@ -6,7 +6,7 @@ export const Logo = ({ size = 28 }: { size?: number }) => {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <Image
-        src="/LOGO.svg"
+        src="/Floodsense icon.png"
         alt="FloodSense"
         width={size}
         height={size}

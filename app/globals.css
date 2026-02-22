@@ -152,6 +152,10 @@ body {
   outline: none;
 }
 
+.search-input::placeholder {
+  color: rgba(230, 238, 248, 0.35);
+}
+
 .forecast-row { display:flex; gap:10px; align-items:center; }
 .two-column { display:grid; grid-template-columns: 1fr 1fr; gap:12px }
 .right-stack { display:grid; grid-auto-rows: min-content; gap:20px }
