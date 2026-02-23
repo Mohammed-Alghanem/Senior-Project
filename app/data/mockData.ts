@@ -10,6 +10,12 @@ export const mockCitiesData: City[] = [
     longitude: 46.6753,
     population: 7180000,
     area: 1500,
+    areas: [
+      { id: 'riyadh-1', name: 'Al Olaya', floodRisk: 'none', waterLevel: 5, affectedPopulation: 0 },
+      { id: 'riyadh-2', name: 'Al Malaz', floodRisk: 'low', waterLevel: 15, affectedPopulation: 50 },
+      { id: 'riyadh-3', name: 'Al Nakheel', floodRisk: 'low', waterLevel: 18, affectedPopulation: 100 },
+      { id: 'riyadh-4', name: 'Al Ward', floodRisk: 'none', waterLevel: 8, affectedPopulation: 0 },
+    ],
     floodData: {
       floodRisk: 'low',
       waterLevel: 15,
@@ -33,6 +39,12 @@ export const mockCitiesData: City[] = [
     longitude: 39.1727,
     population: 4076000,
     area: 1200,
+    areas: [
+      { id: 'jeddah-1', name: 'Al Balad', floodRisk: 'high', waterLevel: 55, affectedPopulation: 400 },
+      { id: 'jeddah-2', name: 'Al Sharafia', floodRisk: 'high', waterLevel: 48, affectedPopulation: 350 },
+      { id: 'jeddah-3', name: 'Al Basateen', floodRisk: 'medium', waterLevel: 30, affectedPopulation: 200 },
+      { id: 'jeddah-4', name: 'Al Safa', floodRisk: 'low', waterLevel: 20, affectedPopulation: 100 },
+    ],
     floodData: {
       floodRisk: 'high',
       waterLevel: 45,
@@ -56,6 +68,12 @@ export const mockCitiesData: City[] = [
     longitude: 50.2165,
     population: 2295000,
     area: 800,
+    areas: [
+      { id: 'dammam-1', name: 'Al Khaleej', floodRisk: 'medium', waterLevel: 32, affectedPopulation: 180 },
+      { id: 'dammam-2', name: 'Al Noor', floodRisk: 'medium', waterLevel: 28, affectedPopulation: 150 },
+      { id: 'dammam-3', name: 'Al Khuzama', floodRisk: 'low', waterLevel: 15, affectedPopulation: 50 },
+      { id: 'dammam-4', name: 'Al Rasheed', floodRisk: 'none', waterLevel: 8, affectedPopulation: 0 },
+    ],
     floodData: {
       floodRisk: 'medium',
       waterLevel: 25,
@@ -79,10 +97,16 @@ export const mockCitiesData: City[] = [
     longitude: 39.8579,
     population: 2011000,
     area: 600,
+    areas: [
+      { id: 'makkah-1', name: 'Al Haram', floodRisk: 'high', waterLevel: 75, affectedPopulation: 900 },
+      { id: 'makkah-2', name: 'Janob Al Balad', floodRisk: 'high', waterLevel: 68, affectedPopulation: 800 },
+      { id: 'makkah-3', name: 'Al Awali', floodRisk: 'medium', waterLevel: 35, affectedPopulation: 300 },
+      { id: 'makkah-4', name: 'Umm Al Qura', floodRisk: 'low', waterLevel: 12, affectedPopulation: 100 },
+    ],
     floodData: {
-      floodRisk: 'critical',
+      floodRisk: 'high',
       waterLevel: 68,
-      waterLevelStatus: 'critical',
+      waterLevelStatus: 'high',
       affectedAreas: 15,
       evacuatedPeople: 3400,
       damageEstimate: 52.8,
@@ -102,6 +126,12 @@ export const mockCitiesData: City[] = [
     longitude: 39.5692,
     population: 1599000,
     area: 500,
+    areas: [
+      { id: 'medina-1', name: 'Al Manakh', floodRisk: 'low', waterLevel: 15, affectedPopulation: 50 },
+      { id: 'medina-2', name: 'Al Noor', floodRisk: 'none', waterLevel: 5, affectedPopulation: 0 },
+      { id: 'medina-3', name: 'Al Salam', floodRisk: 'low', waterLevel: 12, affectedPopulation: 30 },
+      { id: 'medina-4', name: 'Al Aqiq', floodRisk: 'none', waterLevel: 3, affectedPopulation: 0 },
+    ],
     floodData: {
       floodRisk: 'low',
       waterLevel: 12,
@@ -125,6 +155,12 @@ export const mockCitiesData: City[] = [
     longitude: 50.2048,
     population: 586000,
     area: 400,
+    areas: [
+      { id: 'khobar-1', name: 'Al Zahra', floodRisk: 'medium', waterLevel: 38, affectedPopulation: 220 },
+      { id: 'khobar-2', name: 'Al Shimo', floodRisk: 'medium', waterLevel: 32, affectedPopulation: 180 },
+      { id: 'khobar-3', name: 'Al Rabeeh', floodRisk: 'low', waterLevel: 18, affectedPopulation: 80 },
+      { id: 'khobar-4', name: 'Al Noor', floodRisk: 'none', waterLevel: 5, affectedPopulation: 0 },
+    ],
     floodData: {
       floodRisk: 'medium',
       waterLevel: 32,
@@ -148,6 +184,12 @@ export const mockCitiesData: City[] = [
     longitude: 36.5584,
     population: 666000,
     area: 350,
+    areas: [
+      { id: 'tabuk-1', name: 'Al Hazm', floodRisk: 'none', waterLevel: 5, affectedPopulation: 0 },
+      { id: 'tabuk-2', name: 'Al Wadi', floodRisk: 'none', waterLevel: 3, affectedPopulation: 0 },
+      { id: 'tabuk-3', name: 'Al Naim', floodRisk: 'low', waterLevel: 8, affectedPopulation: 20 },
+      { id: 'tabuk-4', name: 'Al Jahra', floodRisk: 'none', waterLevel: 2, affectedPopulation: 0 },
+    ],
     floodData: {
       floodRisk: 'none',
       waterLevel: 5,
@@ -171,6 +213,12 @@ export const mockCitiesData: City[] = [
     longitude: 42.5054,
     population: 510000,
     area: 280,
+    areas: [
+      { id: 'abha-1', name: 'Al Soudah', floodRisk: 'high', waterLevel: 45, affectedPopulation: 300 },
+      { id: 'abha-2', name: 'Al Khazzan', floodRisk: 'high', waterLevel: 42, affectedPopulation: 280 },
+      { id: 'abha-3', name: 'Al Misfah', floodRisk: 'medium', waterLevel: 25, affectedPopulation: 150 },
+      { id: 'abha-4', name: 'Al Raghdan', floodRisk: 'low', waterLevel: 10, affectedPopulation: 50 },
+    ],
     floodData: {
       floodRisk: 'high',
       waterLevel: 38,
@@ -194,6 +242,12 @@ export const mockCitiesData: City[] = [
     longitude: 41.721,
     population: 546000,
     area: 320,
+    areas: [
+      { id: 'hail-1', name: 'Al Balad', floodRisk: 'low', waterLevel: 12, affectedPopulation: 30 },
+      { id: 'hail-2', name: 'Al Samha', floodRisk: 'none', waterLevel: 5, affectedPopulation: 0 },
+      { id: 'hail-3', name: 'Al Nakheel', floodRisk: 'low', waterLevel: 10, affectedPopulation: 10 },
+      { id: 'hail-4', name: 'Al Ward', floodRisk: 'none', waterLevel: 3, affectedPopulation: 0 },
+    ],
     floodData: {
       floodRisk: 'low',
       waterLevel: 10,
@@ -217,6 +271,12 @@ export const mockCitiesData: City[] = [
     longitude: 41.4766,
     population: 432000,
     area: 250,
+    areas: [
+      { id: 'baha-1', name: 'Al Balad', floodRisk: 'medium', waterLevel: 32, affectedPopulation: 120 },
+      { id: 'baha-2', name: 'Al Ain', floodRisk: 'medium', waterLevel: 28, affectedPopulation: 100 },
+      { id: 'baha-3', name: 'Al Mahwit', floodRisk: 'low', waterLevel: 15, affectedPopulation: 30 },
+      { id: 'baha-4', name: 'Al Mukhwah', floodRisk: 'none', waterLevel: 5, affectedPopulation: 0 },
+    ],
     floodData: {
       floodRisk: 'medium',
       waterLevel: 28,
@@ -241,7 +301,7 @@ export const mockDashboardData: DashboardData = {
     (city) => city.floodData.affectedAreas > 0
   ).length,
   criticalAlerts: mockCitiesData.filter(
-    (city) => city.floodData.floodRisk === 'critical'
+    (city) => city.floodData.floodRisk === 'high'
   ).length,
 };
 

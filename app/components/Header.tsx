@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Logo } from './Logo';
 import { useState } from 'react';
+import { UserCircle2 } from 'lucide-react';
 
 interface HeaderProps {
   title?: string;
@@ -12,6 +13,21 @@ interface HeaderProps {
 
 export const Header = ({ title, subtitle }: HeaderProps) => {
   const [showContactPopup, setShowContactPopup] = useState(false);
+  const topbarActionStyle = {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(230,238,248,0.95)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    cursor: 'pointer',
+    padding: '6px 12px',
+    borderRadius: '8px',
+    transition: 'background 0.2s',
+    fontFamily: 'inherit',
+    fontSize: 'inherit',
+    lineHeight: 1.2,
+  } as const;
 
   return (
     <>
@@ -21,14 +37,14 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
           <div className="logo-container" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 180 }}>
             <Link href="/" style={{ textDecoration: 'none' }} aria-label="Home">
               <div style={{ padding: 6, borderRadius: 12, background: 'transparent', display: 'flex', alignItems: 'center' }}>
-                <Logo />
+                <Logo format="svg" />
               </div>
             </Link>
           </div>
 
           <div className="search-container" style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', paddingLeft: 12 }}>
             <div style={{ width: '95%' }}>
-                <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 12, backgroundColor: 'transparent' }} className="search-input card">
+                <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 4, backgroundColor: 'transparent' }} className="search-input card">
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="none" aria-hidden>
                   <path d="M21 21l-4.35-4.35" stroke="rgba(156,163,175,0.9)" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" />
                   <circle cx="11" cy="11" r="6" stroke="rgba(156,163,175,0.9)" strokeWidth={1.4} />
@@ -38,21 +54,10 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
             </div>
           </div>
 
-          <div className="contacts-container" style={{ minWidth: 120, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginRight: 12 }}>
+          <div className="contacts-container" style={{ minWidth: 240, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginRight: 0, gap: 8 }}>
             <button 
               onClick={() => setShowContactPopup(true)}
-              style={{ 
-                background: 'transparent',
-                border: 'none',
-                color: 'rgba(230,238,248,0.95)', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 8,
-                cursor: 'pointer',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                transition: 'background 0.2s',
-              }}
+              style={topbarActionStyle}
               onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
@@ -64,6 +69,20 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
               />
               <span className="contacts-text" style={{ opacity: 0.95 }}>Contacts</span>
             </button>
+
+            <Link
+              href="/profile"
+              style={{
+                ...topbarActionStyle,
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              aria-label="Profile"
+            >
+              <UserCircle2 size={18} color="#AAAAAA" />
+              <span className="contacts-text" style={{ opacity: 0.95 }}>Profile</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -92,7 +111,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
           className="card"
           style={{
             maxWidth: 400,
-            width: '90%',
+            width: 'min(400px, calc(100vw - 24px))',
             padding: 24,
             position: 'relative',
           }}
@@ -141,7 +160,7 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
               <div style={{ fontSize: 13, color: 'rgba(156,163,175,0.9)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Support Team</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
                 <div style={{ fontSize: 20, fontWeight: 600, color: 'rgba(230,238,248,0.95)' }}>050-XXX-XXXX</div>
-                <div style={{ fontSize: 16, fontWeight: 500, color: 'rgba(156,163,175,0.95)' }}>support@floodsense.dev</div>
+                <div style={{ fontSize: 16, fontWeight: 500, color: 'rgba(156,163,175,0.95)' }}>support@floodsense.sa</div>
               </div>
             </div>
           </div>
