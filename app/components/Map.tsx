@@ -63,7 +63,6 @@ export const Map = ({ cities }: MapProps) => {
 
   useEffect(() => {
     if (isSmallScreen) {
-      setSvgMarkup('');
       return;
     }
 
@@ -328,3 +327,4 @@ export const Map = ({ cities }: MapProps) => {
     </div>
   );
 };
+
