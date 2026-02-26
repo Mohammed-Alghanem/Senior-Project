@@ -31,11 +31,11 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
 
   return (
     <>
-    <header className="header-responsive" style={{ padding: 18 }}>
+    <header className="header-responsive" style={{ padding: 18, position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'var(--bg, #050506)' }}>
       <div style={{ maxWidth: 1400, margin: '0 auto' }}>
         <div className="topbar card" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 10 }}>
           <div className="logo-container" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 180 }}>
-            <Link href="/" style={{ textDecoration: 'none' }} aria-label="Home">
+            <Link href="/" style={{ textDecoration: 'none' }} aria-label="Home - Choose country">
               <div style={{ padding: 6, borderRadius: 12, background: 'transparent', display: 'flex', alignItems: 'center' }}>
                 <Logo />
               </div>
@@ -55,6 +55,15 @@ export const Header = ({ title, subtitle }: HeaderProps) => {
           </div>
 
           <div className="contacts-container" style={{ minWidth: 240, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginRight: 0, gap: 8 }}>
+            <Link
+              href="/dashboard"
+              style={{ ...topbarActionStyle, textDecoration: 'none' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              aria-label="Dashboard"
+            >
+              <span className="contacts-text" style={{ opacity: 0.95 }}>Dashboard</span>
+            </Link>
             <button 
               onClick={() => setShowContactPopup(true)}
               style={topbarActionStyle}
