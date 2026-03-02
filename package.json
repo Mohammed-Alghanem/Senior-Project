@@ -11,7 +11,7 @@
     "db:push": "npx prisma db push"
   },
   "prisma": {
-    "seed": "node prisma/seed.js"
+    "seed": "npx ts-node -P prisma/tsconfig.json prisma/seed.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

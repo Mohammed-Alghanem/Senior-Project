@@ -2,9 +2,21 @@
 
 import { Header } from '@/app/components/Header';
 import Image from 'next/image';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FloodPopup } from '@/app/components/FloodPopup';
+import SunPng from '../../SVGs/Sun.png';
+import CloudPng from '../../SVGs/Cloud.png';
+import CloudMidRainPng from '../../SVGs/Cloud mid rain.png';
+import SunCloudMidRainPng from '../../SVGs/Sun cloud mid rain.png';
+import MoonCloudPng from '../../SVGs/Moon cloud.png';
+import SnowPng from '../../SVGs/Big snow little snow.png';
+import CloudFastWindPng from '../../SVGs/Cloud fast wind.png';
+import MoonCloudFastWindPng from '../../SVGs/Moon cloud fast wind.png';
+import FastWindsPng from '../../SVGs/Fast winds.png';
+import MoonCloudZapPng from '../../SVGs/Moon cloud zap.png';
+import CloudAngledRainZapPng from '../../SVGs/Cloud angled rain zap.png';
+import CloudHailstonePng from '../../SVGs/Cloud hailstone.png';
 
 type LocationSummary = {
   location_id: bigint | number;
@@ -22,7 +34,10 @@ type SensorData = {
 type HourlyForecast = {
   time: string;
   temp: number;
-  icon?: string;
+  condition?: string;
+  is_day?: boolean;
+  weather_code?: number;
+  wind_kmh?: number;
 };
 
 type DailyForecast = {
@@ -30,11 +45,15 @@ type DailyForecast = {
   temp: number;
   min: number;
   max: number;
+  condition?: string;
+  is_day?: boolean;
+  weather_code?: number;
+  wind_kmh_max?: number;
 };
 
 type WaterLevelReading = {
   hour: string;
-  value: number;
+  value: number | null;
   timestamp: string;
 };
 
@@ -46,67 +65,155 @@ type Prediction = {
   seconds_until_hazard: number;
 };
 
-function HourCard({ time, temp }: { time: string; temp: number }) {
+type SensorWithReadings = {
+  sensor_id: string;
+  serial_no: string | null;
+  type_name: string | null;
+  unit: string | null;
+  readings: { time_stamp: string; raw_value: number }[];
+};
+
+const getForecastIcon = (
+  condition: string | undefined,
+  isDay: boolean | undefined,
+  temp: number,
+  weatherCode?: number,
+  windKmh?: number
+) => {
+  const normalized = (condition || '').toLowerCase();
+  const day = isDay ?? true;
+  const code = typeof weatherCode === 'number' ? weatherCode : null;
+  const isWindy = typeof windKmh === 'number' && windKmh >= 30;
+
+  if (code !== null) {
+    if (isWindy && code >= 0 && code <= 3) return day ? CloudFastWindPng : MoonCloudFastWindPng;
+    if (code === 0) return day ? SunPng : MoonCloudPng;
+    if ([1, 2].includes(code)) return day ? SunPng : MoonCloudPng;
+    if (code === 3) return CloudPng;
+    if ([45, 48].includes(code)) return CloudPng;
+    if ([51, 53, 55, 56, 57].includes(code)) return day ? CloudMidRainPng : MoonCloudPng;
+    if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return day ? SunCloudMidRainPng : CloudMidRainPng;
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return SnowPng;
+    if ([95, 96, 99].includes(code)) return day ? CloudAngledRainZapPng : MoonCloudZapPng;
+  }
+
+  if (normalized.includes('storm')) return day ? CloudAngledRainZapPng : MoonCloudZapPng;
+  if (normalized.includes('snow')) return SnowPng;
+  if (normalized.includes('drizzle') || normalized.includes('rain')) return day ? SunCloudMidRainPng : CloudMidRainPng;
+  if (normalized.includes('wind') || isWindy) return day ? CloudFastWindPng : MoonCloudFastWindPng;
+  if (normalized.includes('fog')) return CloudPng;
+  if (normalized.includes('hail')) return CloudHailstonePng;
+  if (normalized.includes('sun')) return day ? SunPng : MoonCloudPng;
+  if (normalized.includes('partly')) return day ? SunPng : MoonCloudPng;
+  if (normalized.includes('cloud')) return CloudPng;
+
+  // Fallback when API condition is missing.
+  if (temp <= 5) return SnowPng;
+  if (temp >= 33) return day ? SunPng : MoonCloudPng;
+  return day ? CloudPng : MoonCloudPng;
+};
+
+function HourCard({
+  time,
+  temp,
+  iconSrc,
+}: {
+  time: string;
+  temp: number;
+  iconSrc: React.ComponentProps<typeof Image>['src'];
+}) {
   return (
-    <div style={{ minWidth: 64, textAlign: 'center' }}>
-      <div style={{ width: 56, height: 56, borderRadius: 10, background: 'var(--panel-2)', margin: '0 auto' }} />
-      <div style={{ marginTop: 8, color: 'var(--text)' }}>{time}</div>
-      <div className="muted" style={{ fontSize: 12 }}>{temp}°</div>
+    <div
+      style={{
+        flex: '1 1 0',
+        minWidth: 0,
+        textAlign: 'center',
+        padding: '0 8px',
+      }}
+    >
+      <div
+        style={{
+          width: 74,
+          height: 74,
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Image src={iconSrc} alt="Forecast icon" width={66} height={66} />
+      </div>
+      <div style={{ marginTop: 0, color: 'var(--text)', fontSize: 14 }}>{time}</div>
+      <div style={{ marginTop: 2, color: 'var(--text)', fontWeight: 500, fontSize: 24, lineHeight: 1 }}>{temp}°</div>
     </div>
   );
 }
 
 function CountdownTimer({
-  secondsUntilHazard,
+  predictedHazardTs,
+  predictionId,
   onShowCaution,
   onShowFlood,
 }: {
-  secondsUntilHazard: number | null;
+  predictedHazardTs: string | null;
+  predictionId: string | null;
   onShowCaution: () => void;
   onShowFlood: () => void;
 }) {
-  const [timeLeft, setTimeLeft] = useState<number | null>(secondsUntilHazard);
-  const [hasShownCaution, setHasShownCaution] = useState(false);
-  const [hasShownFlood, setHasShownFlood] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const cautionShownRef = useRef(false);
+  const floodShownRef = useRef(false);
+  const onShowCautionRef = useRef(onShowCaution);
+  const onShowFloodRef = useRef(onShowFlood);
 
   useEffect(() => {
-    setTimeLeft(secondsUntilHazard);
-    setHasShownCaution(false);
-    setHasShownFlood(false);
-  }, [secondsUntilHazard]);
+    onShowCautionRef.current = onShowCaution;
+    onShowFloodRef.current = onShowFlood;
+  }, [onShowCaution, onShowFlood]);
 
   useEffect(() => {
-    if (timeLeft === null || timeLeft <= 0) {
-      if (timeLeft !== null && timeLeft <= 0 && !hasShownFlood) {
-        setHasShownFlood(true);
-        onShowFlood();
-      }
-      return;
+    cautionShownRef.current = false;
+    floodShownRef.current = false;
+
+    if (predictionId && typeof window !== 'undefined') {
+      const alreadyShown = window.localStorage.getItem(`flood-popup-shown:${predictionId}`) === '1';
+      floodShownRef.current = alreadyShown;
     }
 
+    if (!predictedHazardTs) {
+      setTimeLeft(null);
+      return;
+    }
+    const hazardMs = new Date(predictedHazardTs).getTime();
+    const initial = Math.max(0, Math.floor((hazardMs - Date.now()) / 1000));
+    setTimeLeft(initial);
+  }, [predictedHazardTs]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev === null) return null;
-        const newTime = Math.max(0, prev - 1);
-        
-        // Show caution popup if less than 1 hour remaining
-        if (newTime < 3600 && newTime > 0 && !hasShownCaution) {
-          setHasShownCaution(true);
-          onShowCaution();
+      if (!predictedHazardTs) {
+        setTimeLeft(null);
+        return;
+      }
+      const hazardMs = new Date(predictedHazardTs).getTime();
+      const next = Math.max(0, Math.floor((hazardMs - Date.now()) / 1000));
+
+      if (next < 3600 && next > 0 && !cautionShownRef.current) {
+        cautionShownRef.current = true;
+        onShowCautionRef.current();
+      }
+      if (next === 0 && !floodShownRef.current) {
+        floodShownRef.current = true;
+        if (predictionId && typeof window !== 'undefined') {
+          window.localStorage.setItem(`flood-popup-shown:${predictionId}`, '1');
         }
-        
-        // Show flood popup if time is up
-        if (newTime === 0 && !hasShownFlood) {
-          setHasShownFlood(true);
-          onShowFlood();
-        }
-        
-        return newTime;
-      });
+        onShowFloodRef.current();
+      }
+      setTimeLeft(next);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeLeft, hasShownCaution, hasShownFlood, onShowCaution, onShowFlood]);
+  }, [predictedHazardTs, predictionId]);
 
   const isSafe = timeLeft === null || timeLeft === 0;
   const hours = timeLeft !== null ? Math.floor(timeLeft / 3600) : 0;
@@ -174,9 +281,14 @@ export default function DashboardPage() {
   // Prediction
   const [prediction, setPrediction] = useState<Prediction | null>(null);
 
+  // Per-sensor data (Al Qatif): each sensor and its readings for correct display
+  const [sensorsList, setSensorsList] = useState<SensorWithReadings[]>([]);
+  const [dbUnavailable, setDbUnavailable] = useState(false);
+
   // Popups
   const [showCautionPopup, setShowCautionPopup] = useState(false);
   const [showFloodPopup, setShowFloodPopup] = useState(false);
+  const floodPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchParams = useSearchParams();
   const urlLocationId = searchParams.get('location_id');
@@ -210,68 +322,80 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!locationId) return;
+    const pollMs = dbUnavailable ? 30000 : 5000;
+    const fetchSensorsForLocation = async () => {
+      try {
+        const res = await fetch(`/api/locations/${locationId}`, { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (data.dbUnavailable) {
+          setDbUnavailable(true);
+          return;
+        }
+        if (res.ok) {
+          setSensorsList(data.sensors ?? []);
+          setDbUnavailable(false);
+        }
+      } catch (err) {
+        console.error('Error fetching sensors for location', err);
+      }
+    };
+    fetchSensorsForLocation();
+    const t = setInterval(fetchSensorsForLocation, pollMs);
+    return () => clearInterval(t);
+  }, [locationId, dbUnavailable]);
+
+  useEffect(() => {
+    if (!locationId) return;
+    const pollMs = dbUnavailable ? 30000 : 5000;
 
     const fetchSensorData = async () => {
       try {
-        // Temperature
-        const tempRes = await fetch(`/api/sensors?type=Temperature&location_id=${locationId}`);
-        if (tempRes.ok) {
-          const tempData = await tempRes.json();
-          setTemperature({ value: tempData.value, unit: tempData.unit });
+        // Read all 4 dashboard sensors in ONE fast API call (still from DB sensor tables)
+        const res = await fetch(`/api/sensors/latest?location_id=${locationId}`, { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (data.dbUnavailable) {
+          setDbUnavailable(true);
+          return;
         }
-
-        // Water Level (Ultrasonic)
-        const waterRes = await fetch(`/api/sensors?type=Ultrasonic&location_id=${locationId}`);
-        if (waterRes.ok) {
-          const waterData = await waterRes.json();
-          setWaterLevel({ value: waterData.value, unit: waterData.unit });
-        }
-
-        // Power Outage
-        const powerRes = await fetch(`/api/sensors?type=Power Outage&location_id=${locationId}`);
-        if (powerRes.ok) {
-          const powerData = await powerRes.json();
-          setPowerOutage({ value: powerData.value, unit: powerData.unit });
-        }
-
-        // Rain Intensity
-        const rainRes = await fetch(`/api/sensors?type=Rain Intensity&location_id=${locationId}`);
-        if (rainRes.ok) {
-          const rainData = await rainRes.json();
-          setRainIntensity({ value: rainData.value, unit: rainData.unit });
-        }
+        if (!res.ok) return;
+        setTemperature({ value: data.temperature?.value ?? null, unit: data.temperature?.unit ?? null });
+        setWaterLevel({ value: data.waterLevel?.value ?? null, unit: data.waterLevel?.unit ?? null });
+        setPowerOutage({ value: data.powerOutage?.value ?? null, unit: data.powerOutage?.unit ?? null });
+        setRainIntensity({ value: data.rainIntensity?.value ?? null, unit: data.rainIntensity?.unit ?? null });
+        setDbUnavailable(false);
       } catch (err) {
         console.error('Error fetching sensor data', err);
       }
     };
 
     fetchSensorData();
-    const sensorInterval = setInterval(fetchSensorData, 5000); // Refresh every 5 seconds so sensor updates (e.g. rain 54% -> 56%) show immediately
+    const sensorInterval = setInterval(fetchSensorData, pollMs);
     return () => clearInterval(sensorInterval);
-  }, [locationId]);
+  }, [locationId, dbUnavailable]);
 
   useEffect(() => {
     if (!locationId) return;
+    const pollMs = dbUnavailable ? 30000 : 5000;
 
     const fetchWaterLevelGraph = async () => {
       try {
-        const res = await fetch(`/api/water-level-graph?location_id=${locationId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setWaterLevelReadings(data.readings ?? []);
-        }
+        const res = await fetch(`/api/water-level-graph?location_id=${locationId}`, { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (data.dbUnavailable) setDbUnavailable(true);
+        else if (res.ok) setWaterLevelReadings(data.readings ?? []);
       } catch (err) {
         console.error('Error fetching water level graph', err);
       }
     };
 
     fetchWaterLevelGraph();
-    const graphInterval = setInterval(fetchWaterLevelGraph, 15000); // Refresh every 15 seconds
+    const graphInterval = setInterval(fetchWaterLevelGraph, pollMs);
     return () => clearInterval(graphInterval);
-  }, [locationId]);
+  }, [locationId, dbUnavailable]);
 
   useEffect(() => {
     if (!locationId) return;
+    const pollMs = dbUnavailable ? 30000 : 5000;
 
     const fetchPrediction = async () => {
       try {
@@ -286,9 +410,9 @@ export default function DashboardPage() {
     };
 
     fetchPrediction();
-    const predictionInterval = setInterval(fetchPrediction, 30000); // Refresh every 30 seconds
+    const predictionInterval = setInterval(fetchPrediction, pollMs);
     return () => clearInterval(predictionInterval);
-  }, [locationId]);
+  }, [locationId, dbUnavailable]);
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -323,6 +447,26 @@ export default function DashboardPage() {
     return () => clearInterval(weatherInterval);
   }, [lat, lon]);
 
+  useEffect(() => {
+    return () => {
+      if (floodPopupTimeoutRef.current) {
+        clearTimeout(floodPopupTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleShowFloodPopup = () => {
+    setShowFloodPopup(true);
+    if (floodPopupTimeoutRef.current) {
+      clearTimeout(floodPopupTimeoutRef.current);
+    }
+    // Keep flood alert visible for 1 minute once countdown hits zero.
+    floodPopupTimeoutRef.current = setTimeout(() => {
+      setShowFloodPopup(false);
+      floodPopupTimeoutRef.current = null;
+    }, 60000);
+  };
+
   const formatTimeRemaining = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -341,16 +485,30 @@ export default function DashboardPage() {
       );
     }
 
-    const maxValue = Math.max(...waterLevelReadings.map((r) => r.value), 1);
-    const minValue = Math.min(...waterLevelReadings.map((r) => r.value), 0);
+    const valueReadings = waterLevelReadings.filter((r) => typeof r.value === 'number');
+    if (valueReadings.length === 0) {
+      return (
+        <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="muted">No water level data available</div>
+        </div>
+      );
+    }
+
+    const SPIKE_THRESHOLD_CM = 20;
+    const SAFE_BLUE = '#7C88CA';
+    const ALERT_RED = '#FF4245';
+
+    const maxValue = Math.max(...valueReadings.map((r) => r.value as number), 1);
+    const minValue = Math.min(...valueReadings.map((r) => r.value as number), 0);
     const valueRange = maxValue - minValue || 1;
 
-    const points = waterLevelReadings.map((reading, index) => {
+    const plotted = waterLevelReadings.map((reading, index) => {
+      if (typeof reading.value !== 'number') return null;
       const x = 70 + (index * (690 / Math.max(waterLevelReadings.length - 1, 1)));
-      const normalizedValue = (reading.value - minValue) / valueRange;
+      const normalizedValue = ((reading.value as number) - minValue) / valueRange;
       const y = 150 - (normalizedValue * 120); // Invert Y axis
-      return `${x},${y}`;
-    }).join(' ');
+      return { x, y, value: reading.value as number };
+    });
 
     const hourLabels = waterLevelReadings.map((reading, index) => {
       const date = new Date(reading.timestamp);
@@ -375,25 +533,31 @@ export default function DashboardPage() {
         <text x="20" y="65" fontSize="13" fill="#E5E7EB">{maxValue.toFixed(1)} cm</text>
         <text x="20" y="125" fontSize="13" fill="#E5E7EB">{minValue.toFixed(1)} cm</text>
 
-        {/* Chart line */}
-        {points && (
-          <polyline
-            points={points}
-            fill="none"
-            stroke="#6B7280"
-            strokeWidth={2.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        )}
+        {/* Chart line (threshold coloring) */}
+        {plotted.map((point, index) => {
+          const next = plotted[index + 1];
+          if (!point || !next) return null;
+          const segmentColor = Math.max(point.value, next.value) > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE;
+          return (
+            <line
+              key={`segment-${index}`}
+              x1={point.x}
+              y1={point.y}
+              x2={next.x}
+              y2={next.y}
+              stroke={segmentColor}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+            />
+          );
+        })}
 
         {/* Data points */}
-        {waterLevelReadings.map((reading, index) => {
-          const x = 70 + (index * (690 / Math.max(waterLevelReadings.length - 1, 1)));
-          const normalizedValue = (reading.value - minValue) / valueRange;
-          const y = 150 - (normalizedValue * 120);
+        {plotted.map((point, index) => {
+          if (!point) return null;
+          const pointColor = point.value > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE;
           return (
-            <circle key={index} cx={x} cy={y} r="5" fill="#6B7280" stroke="#FFFFFF" strokeWidth="2" />
+            <circle key={index} cx={point.x} cy={point.y} r="5" fill={pointColor} stroke="#FFFFFF" strokeWidth="2" />
           );
         })}
 
@@ -416,7 +580,8 @@ export default function DashboardPage() {
   };
 
   const formatDailyDate = (dateStr: string, index: number): string => {
-    if (index === 0) return 'Tomorrow';
+    if (index === 0) return 'Today';
+    if (index === 1) return 'Tomorrow';
     const date = new Date(dateStr);
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return days[date.getDay()];
@@ -429,22 +594,56 @@ export default function DashboardPage() {
       {showCautionPopup && prediction && (
         <FloodPopup
           type="caution"
-          timeRemaining={formatTimeRemaining(prediction.seconds_until_hazard)}
+          timeRemaining={formatTimeRemaining(Math.max(0, Math.floor((new Date(prediction.predicted_hazard_ts).getTime() - Date.now()) / 1000)))}
           onClose={() => setShowCautionPopup(false)}
         />
       )}
 
       {showFloodPopup && (
-        <FloodPopup type="flood" onClose={() => setShowFloodPopup(false)} />
+        <FloodPopup
+          type="flood"
+          onClose={() => {
+            setShowFloodPopup(false);
+            if (floodPopupTimeoutRef.current) {
+              clearTimeout(floodPopupTimeoutRef.current);
+              floodPopupTimeoutRef.current = null;
+            }
+          }}
+        />
       )}
 
       <main className="dashboard-main" style={{ maxWidth: 1400, margin: '18px auto', width: '100%', padding: '0 18px' }}>
+        {dbUnavailable && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 16,
+              padding: '12px 16px',
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: 10,
+              color: '#fca5a5',
+              fontSize: 14,
+            }}
+          >
+            <strong>Database unavailable.</strong> Open{' '}
+            <a href="/api/db-check" target="_blank" rel="noopener noreferrer" style={{ color: '#93c5fd', textDecoration: 'underline' }}>
+              /api/db-check
+            </a>{' '}
+            in a new tab to see the exact reason and what to fix (e.g. Supabase paused, wrong DATABASE_URL, or network).
+          </div>
+        )}
         <div className="dashboard-grid">
           <div className="card main-content">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div className="muted" style={{ fontSize: 12 }}>Automated Early Warning System</div>
-                <div className="panel-title" style={{ fontSize: 26 }}>{locationName}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span className="panel-title" style={{ fontSize: 26 }}>{locationName}</span>
+                  {!dbUnavailable && (sensorsList.length > 0 || temperature.value !== null || waterLevel.value !== null) && (
+                    <span className="muted" style={{ fontSize: 11, background: 'rgba(34, 197, 94, 0.2)', color: '#86efac', padding: '4px 8px', borderRadius: 6 }}>Live from database</span>
+                  )}
+                </div>
                 <div className="muted">
                   Chance of flood {prediction?.risk_score ? `${Math.round(prediction.risk_score * 100)}%` : 'N/A'}
                 </div>
@@ -464,13 +663,29 @@ export default function DashboardPage() {
             <div className="dashboard-section">
               <div className="panel-inner">
                 <div className="hour-cards-container">
-                  {hourlyForecast.slice(0, 6).map((forecast, i) => (
-                    <HourCard key={i} time={formatHourlyTime(forecast.time)} temp={forecast.temp} />
+                  {hourlyForecast.slice(0, 8).map((forecast, i) => (
+                    <HourCard
+                      key={i}
+                      time={formatHourlyTime(forecast.time)}
+                      temp={forecast.temp}
+                      iconSrc={getForecastIcon(
+                        forecast.condition,
+                        forecast.is_day,
+                        forecast.temp,
+                        forecast.weather_code,
+                        forecast.wind_kmh
+                      )}
+                    />
                   ))}
                   {hourlyForecast.length === 0 && (
                     <>
-                      {[0, 1, 2, 3, 4, 5].map((i) => (
-                        <HourCard key={i} time={`+${i + 1}h`} temp={0} />
+                      {[-2, -1, 0, 1, 2, 3, 4, 5].map((i) => (
+                        <HourCard
+                          key={i}
+                          time={`${i >= 0 ? `+${i}` : i}h`}
+                          temp={0}
+                          iconSrc={getForecastIcon('Cloudy', true, 0)}
+                        />
                       ))}
                     </>
                   )}
@@ -562,15 +777,67 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            <div className="dashboard-section">
+              <div className="panel-inner">
+                <div className="panel-title" style={{ fontSize: 14, marginBottom: 8 }}>Sensors – Al Qatif</div>
+                <p className="muted" style={{ fontSize: 12, marginBottom: 16 }}>Real Feel, Water Level, Power Outage, Rain Intensity.</p>
+                {(() => {
+                  const fourTypes = ['Temperature', 'Ultrasonic', 'Power Outage', 'Rain Intensity'];
+                  const displayNames: Record<string, string> = { 'Temperature': 'Real Feel', 'Ultrasonic': 'Water Level', 'Power Outage': 'Power Outage', 'Rain Intensity': 'Rain Intensity' };
+                  const filtered = sensorsList.filter((s) => fourTypes.includes(s.type_name || ''));
+                  if (filtered.length === 0 && !locationsLoading) {
+                    return <div className="muted" style={{ padding: 16 }}>{dbUnavailable ? 'Database unavailable.' : 'No sensors for this location.'}</div>;
+                  }
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                      {filtered.map((sensor) => {
+                        const latest = sensor.readings?.[0];
+                        const value = latest ? Number(latest.raw_value) : null;
+                        const displayName = displayNames[sensor.type_name || ''] ?? sensor.type_name ?? 'Sensor';
+                        const displayValue = value !== null
+                          ? sensor.type_name === 'Power Outage'
+                            ? (value > 0 ? 'Good' : 'Outage')
+                            : sensor.type_name === 'Rain Intensity'
+                              ? `${Math.round(value)}%`
+                              : `${typeof value === 'number' && value % 1 !== 0 ? value.toFixed(1) : value}${sensor.unit ? ` ${sensor.unit}` : ''}`
+                          : '--';
+                        return (
+                          <div
+                            key={sensor.sensor_id}
+                            style={{
+                              padding: '10px 12px',
+                              background: 'rgba(255,255,255,0.015)',
+                              borderRadius: 8,
+                              border: '1px solid rgba(255,255,255,0.06)',
+                            }}
+                          >
+                            <div className="muted" style={{ fontSize: 10, marginBottom: 2, opacity: 0.75 }}>{sensor.serial_no ?? `ID ${sensor.sensor_id}`}</div>
+                            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{displayName}</div>
+                            <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: 0.1 }}>{displayValue}</div>
+                            {latest && (
+                              <div className="muted" style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
+                                {new Date(latest.time_stamp).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
           </div>
 
           <aside className="dashboard-sidebar">
             <div className="card countdown-card">
               <div className="panel-title">Count Down</div>
               <CountdownTimer
-                secondsUntilHazard={prediction?.seconds_until_hazard ?? null}
+                predictedHazardTs={prediction?.predicted_hazard_ts ?? null}
+                predictionId={prediction?.prediction_id ?? null}
                 onShowCaution={() => setShowCautionPopup(true)}
-                onShowFlood={() => setShowFloodPopup(true)}
+                onShowFlood={handleShowFloodPopup}
               />
             </div>
 
@@ -588,8 +855,16 @@ export default function DashboardPage() {
                       borderBottom: '1px solid rgba(255,255,255,0.02)',
                     }}
                   >
-                    <div className="muted">{formatDailyDate(day.date, i)}</div>
-                    <div className="muted">{day.temp}°</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Image
+                        src={getForecastIcon(day.condition, day.is_day, day.temp, day.weather_code, day.wind_kmh_max)}
+                        alt="Daily forecast icon"
+                        width={36}
+                        height={36}
+                      />
+                      <div className="muted">{formatDailyDate(day.date, i)}</div>
+                    </div>
+                    <div className="muted">{`${day.condition || 'Cloudy'} • ${day.temp}°`}</div>
                   </div>
                 ))}
                 {dailyForecast.length === 0 && (
@@ -605,8 +880,11 @@ export default function DashboardPage() {
                           borderBottom: '1px solid rgba(255,255,255,0.02)',
                         }}
                       >
-                        <div className="muted">{d}</div>
-                        <div className="muted">--°</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Image src={getForecastIcon('Cloudy', true, 0)} alt="Daily forecast icon" width={36} height={36} />
+                          <div className="muted">{d}</div>
+                        </div>
+                        <div className="muted">Cloudy • --°</div>
                       </div>
                     ))}
                   </>
@@ -614,34 +892,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="card stats-card">
-              <div className="panel-title">Quick Stats</div>
-              <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Image src="/temperature.svg" alt="Real Feel" width={20} height={20} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', flex: 1 }}>
-                    <div className="muted">Real Feel</div>
-                    <div>{temperature.value !== null ? `${Math.round(temperature.value)}°` : '--°'}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Image src="/Water_Drop.svg" alt="Humidity" width={20} height={20} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', flex: 1 }}>
-                    <div className="muted">Humidity</div>
-                    <div>{humidity !== null ? `${humidity}%` : '--%'}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Image src="/water_level.svg" alt="Water Level" width={20} height={20} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', flex: 1 }}>
-                    <div className="muted">Water Level</div>
-                    <div>
-                      {waterLevel.value !== null ? `${waterLevel.value.toFixed(1)} ${waterLevel.unit || 'cm'}` : '-- cm'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </aside>
         </div>
       </main>

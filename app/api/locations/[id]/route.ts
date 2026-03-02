@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isDbUnavailableError } from '@/lib/db-error';
 
 /**
  * GET /api/locations/[id]
  * Returns a location with its list of sensors (keyed by sensor_id).
- * Each sensor includes its readings, so you know which sensor read what and where.
+ * Each sensor includes its readings (Water Level, Rain Intensity, Power Outage, Real Feel / Temperature).
  */
 export async function GET(
   _request: Request,
@@ -70,6 +71,10 @@ export async function GET(
       sensors,
     });
   } catch (error) {
+    if (isDbUnavailableError(error)) {
+      console.warn('Database unavailable while fetching location with sensors.');
+      return NextResponse.json({ location: null, sensors: [], dbUnavailable: true });
+    }
     console.error('Error fetching location with sensors', error);
     return NextResponse.json(
       { error: 'Failed to load location and sensors' },

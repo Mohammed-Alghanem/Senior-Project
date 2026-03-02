@@ -21,7 +21,6 @@ body {
   background: #050506;
   color: #e6eef8;
   overflow-x: hidden;
-  scrollbar-gutter: stable both-edges;
 }
 
 :root {
@@ -563,9 +562,17 @@ body {
 
 .hour-cards-container {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: center;
+  gap: 0;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  overflow: hidden;
+  width: 100%;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hour-cards-container::-webkit-scrollbar {
+  display: none;
 }
 
 /* Responsive map frame used on the home page */
