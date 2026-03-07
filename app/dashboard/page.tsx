@@ -322,7 +322,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 5000;
+    const pollMs = dbUnavailable ? 30000 : 7000;
     const fetchSensorsForLocation = async () => {
       try {
         const res = await fetch(`/api/locations/${locationId}`, { cache: 'no-store' });
@@ -346,7 +346,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 5000;
+    const pollMs = dbUnavailable ? 30000 : 7000;
 
     const fetchSensorData = async () => {
       try {
@@ -375,7 +375,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 5000;
+    const pollMs = dbUnavailable ? 30000 : 7000;
 
     const fetchWaterLevelGraph = async () => {
       try {
@@ -395,7 +395,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 5000;
+    const pollMs = dbUnavailable ? 30000 : 7000;
 
     const fetchPrediction = async () => {
       try {
@@ -415,16 +415,30 @@ export default function DashboardPage() {
   }, [locationId, dbUnavailable]);
 
   useEffect(() => {
-    const fetchWeather = async () => {
+    const fetchCurrentWeather = async () => {
       try {
         const latLon = `lat=${lat}&lon=${lon}`;
-
         const currentRes = await fetch(`/api/weather?type=current&${latLon}`);
         if (currentRes.ok) {
           const currentData = await currentRes.json();
-          setHumidity(currentData.humidity ?? null);
+          const humidityValue = Number(currentData.humidity);
+          setHumidity(Number.isFinite(humidityValue) ? humidityValue : null);
           setWind(currentData.wind != null ? parseFloat(currentData.wind) : null);
         }
+      } catch (err) {
+        console.error('Error fetching current weather', err);
+      }
+    };
+
+    fetchCurrentWeather();
+    const currentWeatherInterval = setInterval(fetchCurrentWeather, 7000);
+    return () => clearInterval(currentWeatherInterval);
+  }, [lat, lon]);
+
+  useEffect(() => {
+    const fetchForecastWeather = async () => {
+      try {
+        const latLon = `lat=${lat}&lon=${lon}`;
 
         const hourlyRes = await fetch(`/api/weather?type=hourly&${latLon}`);
         if (hourlyRes.ok) {
@@ -438,13 +452,13 @@ export default function DashboardPage() {
           setDailyForecast(dailyData.daily ?? []);
         }
       } catch (err) {
-        console.error('Error fetching weather', err);
+        console.error('Error fetching forecast weather', err);
       }
     };
 
-    fetchWeather();
-    const weatherInterval = setInterval(fetchWeather, 300000);
-    return () => clearInterval(weatherInterval);
+    fetchForecastWeather();
+    const forecastWeatherInterval = setInterval(fetchForecastWeather, 300000);
+    return () => clearInterval(forecastWeatherInterval);
   }, [lat, lon]);
 
   useEffect(() => {
