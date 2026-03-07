@@ -23,6 +23,74 @@ body {
   overflow-x: hidden;
 }
 
+.app-root-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-root-content {
+  flex: 1;
+}
+
+.site-footer {
+  border-top: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  padding: 14px 18px;
+}
+
+.site-footer-text {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(230,238,248,0.78);
+}
+
+.disclaimer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 2000;
+}
+
+.disclaimer-modal {
+  width: min(680px, calc(100vw - 32px));
+  padding: 24px;
+}
+
+.disclaimer-title {
+  font-size: 22px;
+  margin-bottom: 12px;
+  color: rgba(230,238,248,0.98);
+}
+
+.disclaimer-text {
+  line-height: 1.65;
+  color: rgba(230,238,248,0.9);
+}
+
+.disclaimer-button {
+  margin-top: 18px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.6);
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.disclaimer-button:hover {
+  background: rgba(255,255,255,0.14);
+}
+
 :root {
   --bg: #050506;
   /* card and inner panel tones adjusted for the grayish look */
