@@ -20,7 +20,8 @@ export const prisma =
         : ['error'],
   });
 
-if (process.env.NODE_ENV !== 'production') {
+// Cache the Prisma instance globally in development to avoid multiple instances during hot reload
+if (process.env.NODE_ENV === 'development') {
   globalForPrisma.prisma = prisma;
 }
 
