@@ -2,7 +2,7 @@
 
 import { Header } from '@/app/components/Header';
 import Image from 'next/image';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FloodPopup } from '@/app/components/FloodPopup';
 import SunPng from '../../SVGs/Sun.png';
@@ -266,7 +266,6 @@ export default function DashboardPage() {
   // Sensor data
   const [temperature, setTemperature] = useState<SensorData>({ value: null, unit: null });
   const [waterLevel, setWaterLevel] = useState<SensorData>({ value: null, unit: null });
-  const [powerOutage, setPowerOutage] = useState<SensorData>({ value: null, unit: null });
   const [rainIntensity, setRainIntensity] = useState<SensorData>({ value: null, unit: null });
 
   // Weather data
@@ -288,6 +287,7 @@ export default function DashboardPage() {
   // Popups
   const [showCautionPopup, setShowCautionPopup] = useState(false);
   const [showFloodPopup, setShowFloodPopup] = useState(false);
+  const [visibleGraphCount, setVisibleGraphCount] = useState(1);
   const floodPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchParams = useSearchParams();
@@ -360,7 +360,6 @@ export default function DashboardPage() {
         if (!res.ok) return;
         setTemperature({ value: data.temperature?.value ?? null, unit: data.temperature?.unit ?? null });
         setWaterLevel({ value: data.waterLevel?.value ?? null, unit: data.waterLevel?.unit ?? null });
-        setPowerOutage({ value: data.powerOutage?.value ?? null, unit: data.powerOutage?.unit ?? null });
         setRainIntensity({ value: data.rainIntensity?.value ?? null, unit: data.rainIntensity?.unit ?? null });
         setDbUnavailable(false);
       } catch (err) {
@@ -490,20 +489,20 @@ export default function DashboardPage() {
     return `${minutes}m`;
   };
 
-  const renderWaterLevelGraph = () => {
-    if (waterLevelReadings.length === 0) {
+  const renderSensorGraph = (readings: WaterLevelReading[], unitLabel: string) => {
+    if (readings.length === 0) {
       return (
         <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="muted">No water level data available</div>
+          <div className="muted">No sensor data available</div>
         </div>
       );
     }
 
-    const valueReadings = waterLevelReadings.filter((r) => typeof r.value === 'number');
+    const valueReadings = readings.filter((r) => typeof r.value === 'number');
     if (valueReadings.length === 0) {
       return (
         <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="muted">No water level data available</div>
+          <div className="muted">No sensor data available</div>
         </div>
       );
     }
@@ -516,22 +515,22 @@ export default function DashboardPage() {
     const minValue = Math.min(...valueReadings.map((r) => r.value as number), 0);
     const valueRange = maxValue - minValue || 1;
 
-    const plotted = waterLevelReadings.map((reading, index) => {
+    const plotted = readings.map((reading, index) => {
       if (typeof reading.value !== 'number') return null;
-      const x = 70 + (index * (690 / Math.max(waterLevelReadings.length - 1, 1)));
+      const x = 70 + (index * (690 / Math.max(readings.length - 1, 1)));
       const normalizedValue = ((reading.value as number) - minValue) / valueRange;
       const y = 150 - (normalizedValue * 120); // Invert Y axis
       return { x, y, value: reading.value as number };
     });
 
-    const hourLabels = waterLevelReadings.map((reading, index) => {
+    const hourLabels = readings.map((reading, index) => {
       const date = new Date(reading.timestamp);
       const hours = date.getHours();
       const minutes = date.getMinutes();
       const ampm = hours >= 12 ? 'PM' : 'AM';
       const displayHour = hours % 12 || 12;
       return {
-        x: 70 + (index * (690 / Math.max(waterLevelReadings.length - 1, 1))),
+        x: 70 + (index * (690 / Math.max(readings.length - 1, 1))),
         label: `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`,
       };
     });
@@ -544,8 +543,8 @@ export default function DashboardPage() {
         <line x1="70" y1="30" x2="70" y2="150" stroke="#E5E7EB" strokeWidth="2" />
 
         {/* Y-axis labels */}
-        <text x="20" y="65" fontSize="13" fill="#E5E7EB">{maxValue.toFixed(1)} cm</text>
-        <text x="20" y="125" fontSize="13" fill="#E5E7EB">{minValue.toFixed(1)} cm</text>
+        <text x="20" y="65" fontSize="13" fill="#E5E7EB">{maxValue.toFixed(1)} {unitLabel}</text>
+        <text x="20" y="125" fontSize="13" fill="#E5E7EB">{minValue.toFixed(1)} {unitLabel}</text>
 
         {/* Chart line (threshold coloring) */}
         {plotted.map((point, index) => {
@@ -584,6 +583,78 @@ export default function DashboardPage() {
       </svg>
     );
   };
+
+  const renderWaterLevelGraph = () => renderSensorGraph(waterLevelReadings, waterLevel.unit || 'cm');
+
+  const sensorGraphReadings = (sensor: SensorWithReadings): WaterLevelReading[] => {
+    const now = Date.now();
+    const fourHoursAgo = now - 4 * 60 * 60 * 1000;
+    const points = (sensor.readings || [])
+      .map((r) => {
+        const ts = new Date(r.time_stamp).getTime();
+        return {
+          ts,
+          iso: new Date(ts).toISOString(),
+          value: Number(r.raw_value),
+        };
+      })
+      .filter((r) => Number.isFinite(r.ts) && Number.isFinite(r.value) && r.ts >= fourHoursAgo && r.ts <= now)
+      .sort((a, b) => a.ts - b.ts);
+
+    const sampled = points.slice(-11).map((p) => ({
+      hour: p.iso,
+      value: p.value,
+      timestamp: p.iso,
+    }));
+
+    // Keep the same graph style: append current-time tick.
+    const nowIso = new Date(now).toISOString();
+    return [...sampled, { hour: nowIso, value: null, timestamp: nowIso }];
+  };
+
+  const sensorPowerState = (sensor: SensorWithReadings): { isOn: boolean; reason: string } => {
+    const statusRaw = (sensor.status || '').toLowerCase();
+    const connected =
+      statusRaw.includes('online') ||
+      statusRaw.includes('active') ||
+      statusRaw.includes('connected') ||
+      statusRaw.includes('on');
+
+    const latestTs = sensor.readings?.[0]?.time_stamp ? new Date(sensor.readings[0].time_stamp).getTime() : null;
+    const hasRecentReading = latestTs !== null && Date.now() - latestTs <= 60 * 60 * 1000;
+
+    if (!connected) return { isOn: false, reason: 'Disconnected' };
+    if (!hasRecentReading) return { isOn: false, reason: 'No reading for 1h' };
+    return { isOn: true, reason: 'Reading' };
+  };
+
+  const graphSensors = useMemo(
+    () =>
+      sensorsList.filter((sensor) => {
+        const type = sensor.type_name || '';
+        const serial = sensor.serial_no || '';
+        if (type === 'Power Outage') return false;
+        if (type === 'Humidity') return false;
+        if (serial === 'AQ-02-Ultrasonic') return false;
+        return true;
+      }),
+    [sensorsList]
+  );
+
+  useEffect(() => {
+    if (graphSensors.length === 0) {
+      setVisibleGraphCount(0);
+      return;
+    }
+    setVisibleGraphCount(1);
+    let count = 1;
+    const interval = setInterval(() => {
+      count += 1;
+      setVisibleGraphCount(Math.min(count, graphSensors.length));
+      if (count >= graphSensors.length) clearInterval(interval);
+    }, 220);
+    return () => clearInterval(interval);
+  }, [graphSensors.length]);
 
   const formatHourlyTime = (timeStr: string): string => {
     const date = new Date(timeStr);
@@ -755,15 +826,6 @@ export default function DashboardPage() {
                 <div className="system-status-grid">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Image src="/power_meter.svg" alt="Power Outage" width={24} height={24} />
-                      <div className="muted" style={{ fontSize: 12 }}>Power Outage</div>
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 16, marginLeft: 32 }}>
-                      {powerOutage.value !== null ? (powerOutage.value > 0 ? 'good' : 'outage') : '--'}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Image src="/pipe.svg" alt="Infrastructure" width={24} height={24} />
                       <div className="muted" style={{ fontSize: 12 }}>Infrastructure</div>
                     </div>
@@ -775,7 +837,9 @@ export default function DashboardPage() {
                       <div className="muted" style={{ fontSize: 12 }}>Rain Intensity</div>
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 16, marginLeft: 32 }}>
-                      {rainIntensity.value !== null ? `${Math.round(rainIntensity.value)}%` : '--%'}
+                      {rainIntensity.value !== null
+                        ? `${Number.isInteger(rainIntensity.value) ? rainIntensity.value : rainIntensity.value.toFixed(1)} ${rainIntensity.unit || 'mm'}`
+                        : '-- mm'}
                     </div>
                   </div>
                 </div>
@@ -791,13 +855,57 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {graphSensors.slice(0, visibleGraphCount).map((sensor, index) => {
+              const state = sensorPowerState(sensor);
+              const displayName = sensor.type_name ?? 'Sensor';
+              const graphReadings = sensorGraphReadings(sensor);
+              return (
+                <div className="dashboard-section" key={`graph-${sensor.sensor_id}`}>
+                  <div className="panel-inner">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <div>
+                        <div className="muted" style={{ fontSize: 10 }}>{sensor.serial_no ?? `ID ${sensor.sensor_id}`}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{displayName}</div>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: '4px 8px',
+                          borderRadius: 999,
+                          background: state.isOn ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+                          color: state.isOn ? '#86efac' : '#fca5a5',
+                        }}
+                      >
+                        {state.isOn ? 'ON' : 'OFF'} - {state.reason}
+                      </div>
+                    </div>
+                    <div style={{ width: '100%', height: 200, position: 'relative' }}>
+                      {renderSensorGraph(graphReadings, sensor.unit || (sensor.type_name === 'Rain Intensity' ? 'mm' : 'cm'))}
+                    </div>
+                    {visibleGraphCount < graphSensors.length && sensor === graphSensors[visibleGraphCount - 1] && (
+                      <div className="muted" style={{ paddingTop: 8, textAlign: 'center', fontSize: 12 }}>
+                        Loading graphs...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
             <div className="dashboard-section">
               <div className="panel-inner">
                 <div className="panel-title" style={{ fontSize: 14, marginBottom: 8 }}>Sensors – Al Qatif</div>
-                <p className="muted" style={{ fontSize: 12, marginBottom: 16 }}>Real Feel, Water Level, Power Outage, Rain Intensity.</p>
+                <p className="muted" style={{ fontSize: 12, marginBottom: 16 }}>Real Feel, Water Level, Rain Intensity, Sewage Water Level.</p>
                 {(() => {
-                  const fourTypes = ['Temperature', 'Ultrasonic', 'Power Outage', 'Rain Intensity'];
-                  const displayNames: Record<string, string> = { 'Temperature': 'Real Feel', 'Ultrasonic': 'Water Level', 'Power Outage': 'Power Outage', 'Rain Intensity': 'Rain Intensity' };
+                  const fourTypes = ['Temperature', 'Water Level', 'Ultrasonic', 'Rain Intensity', 'Sewage Water Level'];
+                  const displayNames: Record<string, string> = {
+                    'Temperature': 'Real Feel',
+                    'Water Level': 'Water Level',
+                    'Ultrasonic': 'Water Level',
+                    'Sewage Water Level': 'Sewage Water Level',
+                    'Rain Intensity': 'Rain Intensity',
+                  };
                   const filtered = sensorsList.filter((s) => fourTypes.includes(s.type_name || ''));
                   if (filtered.length === 0 && !locationsLoading) {
                     return <div className="muted" style={{ padding: 16 }}>{dbUnavailable ? 'Database unavailable.' : 'No sensors for this location.'}</div>;
@@ -809,11 +917,9 @@ export default function DashboardPage() {
                         const value = latest ? Number(latest.raw_value) : null;
                         const displayName = displayNames[sensor.type_name || ''] ?? sensor.type_name ?? 'Sensor';
                         const displayValue = value !== null
-                          ? sensor.type_name === 'Power Outage'
-                            ? (value > 0 ? 'Good' : 'Outage')
-                            : sensor.type_name === 'Rain Intensity'
-                              ? `${Math.round(value)}%`
-                              : `${typeof value === 'number' && value % 1 !== 0 ? value.toFixed(1) : value}${sensor.unit ? ` ${sensor.unit}` : ''}`
+                          ? sensor.type_name === 'Rain Intensity'
+                            ? `${Number.isInteger(value) ? value : value.toFixed(1)} ${sensor.unit || 'mm'}`
+                            : `${typeof value === 'number' && value % 1 !== 0 ? value.toFixed(1) : value}${sensor.unit ? ` ${sensor.unit}` : ''}`
                           : '--';
                         return (
                           <div

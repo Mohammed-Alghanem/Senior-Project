@@ -11,16 +11,16 @@ export async function GET(request: Request) {
   }
 
   try {
-    const ultrasonicType = await prisma.sensor_type.findFirst({
+    const waterLevelTypes = await prisma.sensor_type.findMany({
       where: {
         type_name: {
-          contains: 'Ultrasonic',
-          mode: 'insensitive',
+          in: ['Water Level', 'Ultrasonic'],
         },
       },
+      select: { sensor_type_id: true },
     });
 
-    if (!ultrasonicType) {
+    if (waterLevelTypes.length === 0) {
       return NextResponse.json({ readings: [] });
     }
 
@@ -35,69 +35,32 @@ export async function GET(request: Request) {
     const floorToBucket = (date: Date, bucketMs: number) =>
       Math.floor(date.getTime() / bucketMs) * bucketMs;
 
+    const sensorsForLocation = await prisma.sensor.findMany({
+      where: {
+        sensor_type_id: { in: waterLevelTypes.map((t) => t.sensor_type_id) },
+        node: { location_id: BigInt(locationId) },
+      },
+      select: { sensor_id: true },
+      orderBy: { sensor_id: 'asc' },
+    });
+
+    if (sensorsForLocation.length === 0) {
+      return NextResponse.json({ readings: [] });
+    }
+
     let readings = await prisma.sensor_reading.findMany({
       where: {
         time_stamp: {
           gte: fourHoursAgo,
           lte: now,
         },
-        sensor: {
-          sensor_type_id: ultrasonicType.sensor_type_id,
-          node: {
-            location_id: BigInt(locationId),
-          },
-        },
+        sensor_id: { in: sensorsForLocation.map((s) => s.sensor_id) },
       },
       orderBy: {
         time_stamp: 'asc',
       },
       take: 300,
     });
-
-    // If no recent ultrasonic data exists, auto-push simple test packets for the last 30 minutes.
-    if (readings.length === 0) {
-      const sensor = await prisma.sensor.findFirst({
-        where: {
-          sensor_type_id: ultrasonicType.sensor_type_id,
-          node: {
-            location_id: BigInt(locationId),
-          },
-        },
-        orderBy: { sensor_id: 'asc' },
-        select: { sensor_id: true },
-      });
-
-      if (sensor) {
-        const tenBase = floorToBucket(now, 10 * 60 * 1000);
-        await prisma.sensor_reading.createMany({
-          data: [
-            { sensor_id: sensor.sensor_id, time_stamp: new Date(tenBase - 30 * 60 * 1000), raw_value: 14.2 },
-            { sensor_id: sensor.sensor_id, time_stamp: new Date(tenBase - 20 * 60 * 1000), raw_value: 15.0 },
-            { sensor_id: sensor.sensor_id, time_stamp: new Date(tenBase - 10 * 60 * 1000), raw_value: 15.8 },
-          ],
-          skipDuplicates: true,
-        });
-
-        readings = await prisma.sensor_reading.findMany({
-          where: {
-            time_stamp: {
-              gte: fourHoursAgo,
-              lte: now,
-            },
-            sensor: {
-              sensor_type_id: ultrasonicType.sensor_type_id,
-              node: {
-                location_id: BigInt(locationId),
-              },
-            },
-          },
-          orderBy: {
-            time_stamp: 'asc',
-          },
-          take: 300,
-        });
-      }
-    }
 
     const bucketMap = new Map<number, { latestTs: number; latestValue: number }>();
     for (const r of readings) {

@@ -21,7 +21,16 @@ export async function GET(request: Request) {
 
     const sensorTypes = await prisma.sensor_type.findMany({
       where: {
-        type_name: { in: ['Temperature', 'Ultrasonic', 'Power Outage', 'Rain Intensity'] },
+        type_name: {
+          in: [
+            'Temperature',
+            'Water Level',
+            'Ultrasonic',
+            'Sewage Water Level',
+            'Power Outage',
+            'Rain Intensity',
+          ],
+        },
       },
       select: { sensor_type_id: true, type_name: true, unit: true },
     });
@@ -50,67 +59,38 @@ export async function GET(request: Request) {
       },
     });
 
-    const byType: Record<string, { value: number; unit: string | null; timestamp: string } | null> = {
-      Temperature: null,
-      Ultrasonic: null,
-      'Power Outage': null,
-      'Rain Intensity': null,
-    };
-
-    for (const s of sensors) {
-      const name = s.sensor_type?.type_name;
-      const reading = s.readings[0];
-      if (!name || !reading) continue;
-      const existing = byType[name];
-      if (!existing || new Date(reading.time_stamp) > new Date(existing.timestamp)) {
-        byType[name] = {
+    const points = sensors
+      .map((s) => {
+        const reading = s.readings[0];
+        if (!reading || !s.sensor_type?.type_name) return null;
+        return {
+          typeName: s.sensor_type.type_name,
           value: reading.raw_value,
-          unit: s.sensor_type?.unit ?? null,
+          unit: s.sensor_type.unit ?? null,
           timestamp: reading.time_stamp.toISOString(),
+          tsMs: reading.time_stamp.getTime(),
         };
-      }
-    }
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null);
 
-    // Auto-push minimal test data for missing types so dashboard does not stay "--"
-    // when sensors exist but no packets have arrived yet.
-    const defaultsByType: Record<string, number> = {
-      Temperature: 31.2,
-      Ultrasonic: 24.6,
-      'Power Outage': 1,
-      'Rain Intensity': 30,
+    const pickLatest = (typeNames: string[]) => {
+      const lower = typeNames.map((n) => n.toLowerCase());
+      const matches = points.filter((p) => lower.includes(p.typeName.toLowerCase()));
+      if (matches.length === 0) return null;
+      const latest = matches.reduce((a, b) => (b.tsMs > a.tsMs ? b : a));
+      return {
+        value: latest.value,
+        unit: latest.unit,
+        timestamp: latest.timestamp,
+      };
     };
-
-    const missingTypes = Object.keys(byType).filter((typeName) => byType[typeName] === null);
-    if (missingTypes.length > 0) {
-      const now = new Date();
-      for (const typeName of missingTypes) {
-        const sensorForType = sensors.find(
-          (s) => s.sensor_type?.type_name === typeName
-        );
-        if (!sensorForType) continue;
-
-        const defaultValue = defaultsByType[typeName] ?? 0;
-        const created = await prisma.sensor_reading.create({
-          data: {
-            sensor_id: sensorForType.sensor_id,
-            time_stamp: now,
-            raw_value: defaultValue,
-          },
-        });
-
-        byType[typeName] = {
-          value: created.raw_value,
-          unit: sensorForType.sensor_type?.unit ?? null,
-          timestamp: created.time_stamp.toISOString(),
-        };
-      }
-    }
 
     return NextResponse.json({
-      temperature: byType.Temperature,
-      waterLevel: byType.Ultrasonic,
-      powerOutage: byType['Power Outage'],
-      rainIntensity: byType['Rain Intensity'],
+      temperature: pickLatest(['Temperature']),
+      waterLevel: pickLatest(['Water Level', 'Ultrasonic']),
+      sewageWaterLevel: pickLatest(['Sewage Water Level']),
+      powerOutage: pickLatest(['Power Outage']),
+      rainIntensity: pickLatest(['Rain Intensity']),
     });
   } catch (error) {
     if (isDbUnavailableError(error)) {
