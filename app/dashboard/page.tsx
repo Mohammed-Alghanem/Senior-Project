@@ -1,6 +1,7 @@
 'use client';
 
 import { Header } from '@/app/components/Header';
+import { Suspense } from 'react';
 import Image from 'next/image';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -67,7 +68,10 @@ type Prediction = {
 
 type SensorWithReadings = {
   sensor_id: string;
+  node_id: string;
+  location_id: string;
   serial_no: string | null;
+  status: string | null;
   type_name: string | null;
   unit: string | null;
   readings: { time_stamp: string; raw_value: number }[];
@@ -181,13 +185,14 @@ function CountdownTimer({
     }
 
     if (!predictedHazardTs) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTimeLeft(null);
       return;
     }
     const hazardMs = new Date(predictedHazardTs).getTime();
     const initial = Math.max(0, Math.floor((hazardMs - Date.now()) / 1000));
     setTimeLeft(initial);
-  }, [predictedHazardTs]);
+  }, [predictedHazardTs, predictionId]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -259,7 +264,7 @@ function CountdownTimer({
   );
 }
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const [locations, setLocations] = useState<LocationSummary[]>([]);
   const [locationsLoading, setLocationsLoading] = useState(true);
 
@@ -1016,5 +1021,13 @@ export default function DashboardPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DashboardPageContent />
+    </Suspense>
   );
 }

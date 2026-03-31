@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isDbUnavailableError } from '@/lib/db-error';
-import { QueryMode } from '@prisma/client';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -17,7 +16,7 @@ export async function GET(request: Request) {
       where: {
         type_name: {
           contains: sensorTypeName || '',
-          mode: QueryMode.insensitive,
+          mode: 'insensitive',
         },
       },
     });
@@ -100,7 +99,7 @@ export async function POST(request: Request) {
       where: {
         type_name: {
           contains: typeName,
-          mode: QueryMode.insensitive,
+          mode: 'insensitive',
         },
       },
     });

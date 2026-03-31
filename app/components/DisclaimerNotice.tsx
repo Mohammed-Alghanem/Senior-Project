@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const DISCLAIMER_TEXT =
   "Floodsense is an informational platform designed to notify users of potential flood risks based on collected sensor data. It does not issue official meteorological warnings. Official warnings and alerts are issued only by the authorized meteorological center.";
@@ -8,15 +8,13 @@ const DISCLAIMER_TEXT =
 const STORAGE_KEY = "floodsense_disclaimer_seen";
 
 export default function DisclaimerNotice() {
-  const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    const hasSeenDisclaimer = window.localStorage.getItem(STORAGE_KEY);
-
-    if (!hasSeenDisclaimer) {
-      setIsOpen(true);
+  const [isOpen, setIsOpen] = useState(() => {
+    // Initialize state from localStorage to avoid setState in effect
+    if (typeof window !== 'undefined') {
+      return !window.localStorage.getItem(STORAGE_KEY);
     }
-  }, []);
+    return false;
+  });
 
   const handleClose = () => {
     window.localStorage.setItem(STORAGE_KEY, "true");

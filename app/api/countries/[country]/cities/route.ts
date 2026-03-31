@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { QueryMode } from '@prisma/client';
 
 export async function GET(
   _request: Request,
@@ -19,13 +18,13 @@ export async function GET(
   }
 
   const fallbackSaudiCities = [
-    { id: 'al-qatif', city: 'Al Qatif', name: 'Al Qatif Central', risk_class: 'low' as string | null, coordinates: '26.5200,50.0089' as string | null },
+    { id: 'al-qatif', city: 'Al Qatif', name: 'Al Qatif Central', risk_class: 'low' as string | null, coordinates: '26.5200,50.0089' as string | null, location_id: '1' },
   ];
 
   try {
     const locations = await prisma.location.findMany({
       where: {
-        country: { equals: countryName, mode: QueryMode.insensitive },
+        country: { equals: countryName, mode: 'insensitive' },
       },
       select: {
         location_id: true,

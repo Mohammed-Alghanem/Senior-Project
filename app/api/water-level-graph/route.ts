@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ readings: [] });
     }
 
-    let readings = await prisma.sensor_reading.findMany({
+    const readings = await prisma.sensor_reading.findMany({
       where: {
         time_stamp: {
           gte: fourHoursAgo,

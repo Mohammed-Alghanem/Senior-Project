@@ -93,7 +93,7 @@ export async function GET(request: Request) {
       }, 0);
 
       let start = Math.max(0, closestNowIndex - 2);
-      let end = Math.min(rows.length, start + 8);
+      const end = Math.min(rows.length, start + 8);
       if (end - start < 8) {
         start = Math.max(0, end - 8);
       }
