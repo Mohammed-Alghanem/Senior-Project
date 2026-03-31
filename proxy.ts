@@ -6,7 +6,7 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isLoginPage = pathname === '/login';
-  const isProtectedPage = pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/city') || pathname.startsWith('/profile');
+  const isProtectedPage = pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/city') || pathname.startsWith('/profile') || pathname.startsWith('/country');
 
   if (isLoginPage && authToken) {
     return NextResponse.redirect(new URL('/', request.url));
@@ -20,5 +20,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/login', '/dashboard/:path*', '/city/:path*', '/profile/:path*'],
+  matcher: ['/', '/login', '/dashboard/:path*', '/city/:path*', '/profile/:path*', '/country/:path*'],
 };
