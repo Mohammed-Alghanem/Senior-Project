@@ -5,6 +5,8 @@
 export function isDbUnavailableError(error: unknown): boolean {
   if (error instanceof Error) {
     if (error.message.includes("Can't reach database server")) return true;
+    if (error.message.includes('MaxClientsInSessionMode')) return true; // Supabase connection pool exhausted
+    if (error.message.includes('max clients')) return true; // Generic pool exhaustion
     if (error.name === 'PrismaClientInitializationError') return true;
   }
   const code = (error as { code?: string })?.code;

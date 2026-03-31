@@ -85,6 +85,11 @@ export async function GET() {
     } else if (message.includes('ENOTFOUND') || message.includes('getaddrinfo')) {
       reason = 'Could not resolve database hostname.';
       checklist.push('Check DATABASE_URL: host should be db.[project-ref].supabase.co or aws-0-[region].pooler.supabase.com.');
+    } else if (message.includes('MaxClientsInSessionMode') || message.includes('max clients reached')) {
+      reason = 'Database connection pool exhausted (too many concurrent connections).';
+      checklist.push('If Pooler settings are not available on your plan, keep using your current DB and set DATABASE_URL query params: pgbouncer=true&connection_limit=1&pool_timeout=20.');
+      checklist.push('Alternative: use direct DB host (db.[project-ref].supabase.co:5432) in Preview/low traffic environments.');
+      checklist.push('Vercel Preview creates many short-lived instances; low connection_limit is the safest fix when pool controls are locked.');
     }
 
     return NextResponse.json(
