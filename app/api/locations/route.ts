@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, releasePrismaConnection } from '@/lib/prisma';
 import { isDbUnavailableError } from '@/lib/db-error';
 
 const FALLBACK_AL_QATIF = [
@@ -37,6 +37,8 @@ export async function GET() {
     }
     console.error('Error fetching locations', error);
     return NextResponse.json({ locations: FALLBACK_AL_QATIF });
+  } finally {
+    await releasePrismaConnection();
   }
 }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, releasePrismaConnection } from '@/lib/prisma';
 
 /**
  * GET /api/db-check
@@ -101,5 +101,7 @@ export async function GET() {
       },
       { status: 503 }
     );
+  } finally {
+    await releasePrismaConnection();
   }
 }

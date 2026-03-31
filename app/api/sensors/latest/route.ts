@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, releasePrismaConnection } from '@/lib/prisma';
 import { isDbUnavailableError } from '@/lib/db-error';
 
 /**
@@ -102,5 +102,7 @@ export async function GET(request: Request) {
     }
     console.error('Error fetching sensor latest', error);
     return NextResponse.json({ error: 'Failed to load sensor data' }, { status: 500 });
+  } finally {
+    await releasePrismaConnection();
   }
 }

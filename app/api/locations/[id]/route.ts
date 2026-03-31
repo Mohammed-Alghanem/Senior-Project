@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, releasePrismaConnection } from '@/lib/prisma';
 import { isDbUnavailableError } from '@/lib/db-error';
 
 /**
@@ -80,5 +80,7 @@ export async function GET(
       { error: 'Failed to load location and sensors' },
       { status: 500 }
     );
+  } finally {
+    await releasePrismaConnection();
   }
 }

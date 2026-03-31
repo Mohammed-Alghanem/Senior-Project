@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, releasePrismaConnection } from '@/lib/prisma';
 import { isDbUnavailableError } from '@/lib/db-error';
 
 export async function GET(request: Request) {
@@ -47,6 +47,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ prediction: null, dbUnavailable: true });
     }
     return NextResponse.json({ error: 'Failed to load predictions' }, { status: 500 });
+  } finally {
+    await releasePrismaConnection();
   }
 }
 
@@ -142,5 +144,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ inserted: false, dbUnavailable: true }, { status: 200 });
     }
     return NextResponse.json({ error: 'Failed to create prediction' }, { status: 500 });
+  } finally {
+    await releasePrismaConnection();
   }
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, releasePrismaConnection } from '@/lib/prisma';
 import { isDbUnavailableError } from '@/lib/db-error';
 
 export async function GET(request: Request) {
@@ -121,5 +121,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ readings: [], dbUnavailable: true });
     }
     return NextResponse.json({ error: 'Failed to load water level graph data' }, { status: 500 });
+  } finally {
+    await releasePrismaConnection();
   }
 }

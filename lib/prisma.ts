@@ -51,6 +51,16 @@ export const prisma =
         : ['error'],
   });
 
+export async function releasePrismaConnection(): Promise<void> {
+  // In Vercel serverless, proactively close idle clients to avoid session pool buildup.
+  if (!process.env.VERCEL) return;
+  try {
+    await prisma.$disconnect();
+  } catch {
+    // Ignore disconnect failures; request handlers already return their own error payloads.
+  }
+}
+
 // Cache the Prisma instance globally in development to avoid multiple instances during hot reload
 if (process.env.NODE_ENV === 'development') {
   globalForPrisma.prisma = prisma;
