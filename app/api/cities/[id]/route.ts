@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { QueryMode } from '@prisma/client';
 import type { City, Area, FloodData } from '@/app/types';
 
 const mapRiskClassToFloodRisk = (risk: string | null): FloodData['floodRisk'] => {
@@ -31,16 +32,16 @@ export async function GET(
     const normalizedForMatch = cityId.replace(/\s+/g, '').toLowerCase();
     const isAlQatif = ['al qatif', 'alqatif', 'al-qatif', 'qatif'].includes(cityId.toLowerCase()) || normalizedForMatch === 'alqatif' || normalizedForMatch === 'al-qatif';
 
-    const where = isNumericId
+    const where: any = isNumericId
       ? { location_id: BigInt(cityId) }
       : {
           OR: [
-            { city: { equals: cityId, mode: 'insensitive' } },
-            { name: { equals: cityId, mode: 'insensitive' } },
-            { city: { equals: cityId.replace(/\s+/g, ''), mode: 'insensitive' } },
-            { name: { equals: cityId.replace(/\s+/g, ''), mode: 'insensitive' } },
-            { city: { contains: 'qatif', mode: 'insensitive' } },
-            { name: { contains: 'qatif', mode: 'insensitive' } },
+            { city: { equals: cityId, mode: QueryMode.insensitive } },
+            { name: { equals: cityId, mode: QueryMode.insensitive } },
+            { city: { equals: cityId.replace(/\s+/g, ''), mode: QueryMode.insensitive } },
+            { name: { equals: cityId.replace(/\s+/g, ''), mode: QueryMode.insensitive } },
+            { city: { contains: 'qatif', mode: QueryMode.insensitive } },
+            { name: { contains: 'qatif', mode: QueryMode.insensitive } },
           ],
         };
 

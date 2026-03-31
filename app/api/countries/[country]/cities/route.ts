@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { QueryMode } from '@prisma/client';
 
 export async function GET(
   _request: Request,
@@ -24,7 +25,7 @@ export async function GET(
   try {
     const locations = await prisma.location.findMany({
       where: {
-        country: { equals: countryName, mode: 'insensitive' },
+        country: { equals: countryName, mode: QueryMode.insensitive },
       },
       select: {
         location_id: true,

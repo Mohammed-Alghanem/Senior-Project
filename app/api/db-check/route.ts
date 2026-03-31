@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { QueryMode } from '@prisma/client';
 
 /**
  * GET /api/db-check
@@ -11,8 +12,8 @@ export async function GET() {
     const location = await prisma.location.findFirst({
       where: {
         OR: [
-          { city: { contains: 'Qatif', mode: 'insensitive' } },
-          { name: { contains: 'Qatif', mode: 'insensitive' } },
+          { city: { contains: 'Qatif', mode: QueryMode.insensitive } },
+          { name: { contains: 'Qatif', mode: QueryMode.insensitive } },
         ],
       },
       select: {
