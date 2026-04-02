@@ -25,7 +25,11 @@ export async function GET(request: Request) {
     }
 
     const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const bucketMs = 30 * 60 * 1000;
+    const endMs = Math.floor(now.getTime() / bucketMs) * bucketMs;
+    const startMs = endMs - 6 * 60 * 60 * 1000;
+    const startDate = new Date(startMs);
+    const endDate = new Date(endMs);
 
     const sensorsForLocation = await prisma.sensor.findMany({
       where: {
@@ -43,24 +47,21 @@ export async function GET(request: Request) {
     const readings = await prisma.sensor_reading.findMany({
       where: {
         time_stamp: {
-          gte: oneHourAgo,
-          lte: now,
+          gte: startDate,
+          lte: endDate,
         },
         sensor_id: { in: sensorsForLocation.map((s) => s.sensor_id) },
       },
       orderBy: {
         time_stamp: 'asc',
       },
-      take: 300,
     });
 
     const bucketMap = new Map<number, { latestTs: number; latestValue: number }>();
-    const bucketMs = 6 * 60 * 1000;
-    const startMs = now.getTime() - 60 * 60 * 1000;
     for (const r of readings) {
       const ts = r.time_stamp.getTime();
       const bucketIndex = Math.floor((ts - startMs) / bucketMs);
-      if (bucketIndex < 0 || bucketIndex > 10) continue;
+      if (bucketIndex < 0 || bucketIndex > 12) continue;
       const bucket = startMs + bucketIndex * bucketMs;
       const existing = bucketMap.get(bucket);
       if (!existing || ts >= existing.latestTs) {
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
     }
 
     const slots: number[] = [];
-    for (let i = 0; i <= 10; i += 1) {
+    for (let i = 0; i <= 12; i += 1) {
       slots.push(startMs + i * bucketMs);
     }
 

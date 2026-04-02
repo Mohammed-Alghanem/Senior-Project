@@ -299,18 +299,19 @@ function DashboardPageContent() {
 
   // Water level graph
   const [waterLevelReadings, setWaterLevelReadings] = useState<WaterLevelReading[]>([]);
+  const [waterLevelGraphLoadedOnce, setWaterLevelGraphLoadedOnce] = useState(false);
 
   // Prediction
   const [prediction, setPrediction] = useState<Prediction | null>(null);
 
   // Per-sensor data (Al Qatif): each sensor and its readings for correct display
   const [sensorsList, setSensorsList] = useState<SensorWithReadings[]>([]);
+  const [sensorsLoadedOnce, setSensorsLoadedOnce] = useState(false);
   const [dbUnavailable, setDbUnavailable] = useState(false);
 
   // Popups
   const [showCautionPopup, setShowCautionPopup] = useState(false);
   const [showFloodPopup, setShowFloodPopup] = useState(false);
-  const [visibleGraphCount, setVisibleGraphCount] = useState(1);
   const floodPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchParams = useSearchParams();
@@ -360,6 +361,8 @@ function DashboardPageContent() {
         }
       } catch (err) {
         console.error('Error fetching sensors for location', err);
+      } finally {
+        setSensorsLoadedOnce(true);
       }
     };
     fetchSensorsForLocation();
@@ -404,9 +407,15 @@ function DashboardPageContent() {
         const res = await fetch(`/api/water-level-graph?location_id=${locationId}`, { cache: 'no-store' });
         const data = await res.json().catch(() => ({}));
         if (data.dbUnavailable) setDbUnavailable(true);
-        else if (res.ok) setWaterLevelReadings(data.readings ?? []);
+        else if (res.ok) {
+          const readings = data.readings ?? [];
+          console.log('[water-level-graph] readings inserted into graph', readings);
+          setWaterLevelReadings(readings);
+        }
       } catch (err) {
         console.error('Error fetching water level graph', err);
+      } finally {
+        setWaterLevelGraphLoadedOnce(true);
       }
     };
 
@@ -615,9 +624,356 @@ function DashboardPageContent() {
     );
   };
 
-  const renderWaterLevelGraph = () => renderSensorGraph(waterLevelReadings, waterLevel.unit || 'cm');
+  const renderWaterLevelGraph = () => {
+    const unitLabel = waterLevel.unit || 'cm';
+    const chartTopY = 30;
+    const chartBottomY = 150;
+    const chartHeight = chartBottomY - chartTopY;
+
+    if (waterLevelReadings.length === 0) {
+      return (
+        <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="muted">No sensor data available</div>
+        </div>
+      );
+    }
+
+    const valueReadings = waterLevelReadings.filter((r) => typeof r.value === 'number');
+    const hasValues = valueReadings.length > 0;
+    if (!hasValues) {
+      return (
+        <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="muted">No sensor data available</div>
+        </div>
+      );
+    }
+    const maxValue = hasValues ? Math.max(...valueReadings.map((r) => r.value as number), 1) : 1;
+    const minValue = hasValues ? Math.min(...valueReadings.map((r) => r.value as number), 0) : 0;
+    const valueRange = maxValue - minValue || 1;
+
+    const chartEnd = new Date();
+    chartEnd.setSeconds(0, 0);
+    if (chartEnd.getMinutes() > 0) {
+      chartEnd.setHours(chartEnd.getHours() + 1, 0, 0, 0);
+    } else {
+      chartEnd.setMinutes(0, 0, 0);
+    }
+
+    const chartStart = new Date(chartEnd);
+    chartStart.setHours(chartEnd.getHours() - 6);
+
+    const chartStartMs = chartStart.getTime();
+    const chartEndMs = chartEnd.getTime();
+    const chartRangeMs = Math.max(chartEndMs - chartStartMs, 1);
+
+    const toChartX = (ts: number): number => {
+      const clampedTs = Math.min(Math.max(ts, chartStartMs), chartEndMs);
+      return 70 + (((clampedTs - chartStartMs) / chartRangeMs) * 690);
+    };
+
+    const SPIKE_THRESHOLD_CM = 20;
+    const SAFE_BLUE = '#7C88CA';
+    const ALERT_RED = '#FF4245';
+
+    const plotted = waterLevelReadings.map((reading, index) => {
+      if (typeof reading.value !== 'number') return null;
+      const ts = new Date(reading.timestamp).getTime();
+      const fallbackTs = chartStartMs + ((index / Math.max(waterLevelReadings.length - 1, 1)) * chartRangeMs);
+      const x = toChartX(Number.isFinite(ts) ? ts : fallbackTs);
+      const normalizedValue = ((reading.value as number) - minValue) / valueRange;
+      const y = chartBottomY - (normalizedValue * chartHeight);
+      return { x, y, value: reading.value as number };
+    });
+
+    const segments: Array<{ from: number; to: number; color: string }> = [];
+    let lastValidIndex = -1;
+
+    for (let i = 0; i < waterLevelReadings.length; i += 1) {
+      if (typeof waterLevelReadings[i].value !== 'number') continue;
+
+      if (lastValidIndex !== -1) {
+        const gapSize = i - lastValidIndex - 1;
+        if (gapSize <= 2) {
+          const fromPoint = plotted[lastValidIndex];
+          const toPoint = plotted[i];
+          if (fromPoint && toPoint) {
+            segments.push({
+              from: lastValidIndex,
+              to: i,
+              color: Math.max(fromPoint.value, toPoint.value) > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE,
+            });
+          }
+        }
+      }
+
+      lastValidIndex = i;
+    }
+
+    const hourLabels = Array.from({ length: 7 }, (_, index) => {
+      const labelDate = new Date(chartStart);
+      labelDate.setHours(chartStart.getHours() + index, 0, 0, 0);
+
+      const displayHour = labelDate.getHours() % 12 || 12;
+      const displayPeriod = labelDate.getHours() >= 12 ? 'pm' : 'am';
+
+      return {
+        x: toChartX(labelDate.getTime()),
+        label: `${displayHour}:00 ${displayPeriod}`,
+      };
+    });
+
+    return (
+      <svg width="100%" height="100%" viewBox="0 0 820 200" preserveAspectRatio="xMidYMid meet">
+        {/* Grid lines */}
+        <line x1="70" y1={chartTopY} x2="760" y2={chartTopY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={(chartTopY + chartBottomY) / 2} x2="760" y2={(chartTopY + chartBottomY) / 2} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartBottomY} x2="760" y2={chartBottomY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartTopY} x2="70" y2={chartBottomY} stroke="#E5E7EB" strokeWidth="2" />
+
+        {/* Y-axis labels */}
+        <text x="20" y={chartTopY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">
+          {hasValues ? `${maxValue.toFixed(1)} ${unitLabel}` : `-- ${unitLabel}`}
+        </text>
+        <text x="20" y={chartBottomY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">
+          {hasValues ? `${minValue.toFixed(1)} ${unitLabel}` : `-- ${unitLabel}`}
+        </text>
+
+        {/* Chart line (threshold coloring) */}
+        {segments.map((segment) => {
+          const fromPoint = plotted[segment.from];
+          const toPoint = plotted[segment.to];
+          if (!fromPoint || !toPoint) return null;
+
+          return (
+            <line
+              key={`segment-${segment.from}-${segment.to}`}
+              x1={fromPoint.x}
+              y1={fromPoint.y}
+              x2={toPoint.x}
+              y2={toPoint.y}
+              stroke={segment.color}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+            />
+          );
+        })}
+
+        {/* Data points */}
+        {plotted.map((point, index) => {
+          if (!point) return null;
+          const pointColor = point.value > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE;
+          return (
+            <circle key={index} cx={point.x} cy={point.y} r="5" fill={pointColor} stroke="#FFFFFF" strokeWidth="2" />
+          );
+        })}
+
+        {/* X-axis labels */}
+        {hourLabels.map((label, index) => (
+          <text key={index} x={label.x} y="175" fontSize="12" fill="#E5E7EB" textAnchor="middle">
+            {label.label}
+          </text>
+        ))}
+      </svg>
+    );
+  };
+
+  const renderWaterLevelStyleSensorGraph = (readings: WaterLevelReading[], unitLabel: string) => {
+    const chartTopY = 30;
+    const chartBottomY = 150;
+    const chartHeight = chartBottomY - chartTopY;
+
+    if (readings.length === 0) {
+      return (
+        <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="muted">No sensor data available</div>
+        </div>
+      );
+    }
+
+    const valueReadings = readings.filter((r) => typeof r.value === 'number');
+    const hasValues = valueReadings.length > 0;
+    if (!hasValues) {
+      return (
+        <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="muted">No sensor data available</div>
+        </div>
+      );
+    }
+    const maxValue = hasValues ? Math.max(...valueReadings.map((r) => r.value as number), 1) : 1;
+    const minValue = hasValues ? Math.min(...valueReadings.map((r) => r.value as number), 0) : 0;
+    const valueRange = maxValue - minValue || 1;
+
+    const chartEnd = new Date();
+    chartEnd.setSeconds(0, 0);
+    if (chartEnd.getMinutes() > 0) {
+      chartEnd.setHours(chartEnd.getHours() + 1, 0, 0, 0);
+    } else {
+      chartEnd.setMinutes(0, 0, 0);
+    }
+
+    const chartStart = new Date(chartEnd);
+    chartStart.setHours(chartEnd.getHours() - 6);
+
+    const chartStartMs = chartStart.getTime();
+    const chartEndMs = chartEnd.getTime();
+    const chartRangeMs = Math.max(chartEndMs - chartStartMs, 1);
+
+    const toChartX = (ts: number): number => {
+      const clampedTs = Math.min(Math.max(ts, chartStartMs), chartEndMs);
+      return 70 + (((clampedTs - chartStartMs) / chartRangeMs) * 690);
+    };
+
+    const SPIKE_THRESHOLD_CM = 20;
+    const SAFE_BLUE = '#7C88CA';
+    const ALERT_RED = '#FF4245';
+
+    const plotted = readings.map((reading, index) => {
+      if (typeof reading.value !== 'number') return null;
+      const ts = new Date(reading.timestamp).getTime();
+      const fallbackTs = chartStartMs + ((index / Math.max(readings.length - 1, 1)) * chartRangeMs);
+      const x = toChartX(Number.isFinite(ts) ? ts : fallbackTs);
+      const normalizedValue = ((reading.value as number) - minValue) / valueRange;
+      const y = chartBottomY - (normalizedValue * chartHeight);
+      return { x, y, value: reading.value as number };
+    });
+
+    const segments: Array<{ from: number; to: number; color: string }> = [];
+    let lastValidIndex = -1;
+
+    for (let i = 0; i < readings.length; i += 1) {
+      if (typeof readings[i].value !== 'number') continue;
+
+      if (lastValidIndex !== -1) {
+        const gapSize = i - lastValidIndex - 1;
+        if (gapSize <= 2) {
+          const fromPoint = plotted[lastValidIndex];
+          const toPoint = plotted[i];
+          if (fromPoint && toPoint) {
+            segments.push({
+              from: lastValidIndex,
+              to: i,
+              color: Math.max(fromPoint.value, toPoint.value) > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE,
+            });
+          }
+        }
+      }
+
+      lastValidIndex = i;
+    }
+
+    const hourLabels = Array.from({ length: 7 }, (_, index) => {
+      const labelDate = new Date(chartStart);
+      labelDate.setHours(chartStart.getHours() + index, 0, 0, 0);
+      const displayHour = labelDate.getHours() % 12 || 12;
+      const displayPeriod = labelDate.getHours() >= 12 ? 'pm' : 'am';
+      return {
+        x: toChartX(labelDate.getTime()),
+        label: `${displayHour}:00 ${displayPeriod}`,
+      };
+    });
+
+    return (
+      <svg width="100%" height="100%" viewBox="0 0 820 200" preserveAspectRatio="xMidYMid meet">
+        <line x1="70" y1={chartTopY} x2="760" y2={chartTopY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={(chartTopY + chartBottomY) / 2} x2="760" y2={(chartTopY + chartBottomY) / 2} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartBottomY} x2="760" y2={chartBottomY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartTopY} x2="70" y2={chartBottomY} stroke="#E5E7EB" strokeWidth="2" />
+
+        <text x="20" y={chartTopY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">
+          {hasValues ? `${maxValue.toFixed(1)} ${unitLabel}` : `-- ${unitLabel}`}
+        </text>
+        <text x="20" y={chartBottomY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">
+          {hasValues ? `${minValue.toFixed(1)} ${unitLabel}` : `-- ${unitLabel}`}
+        </text>
+
+        {segments.map((segment) => {
+          const fromPoint = plotted[segment.from];
+          const toPoint = plotted[segment.to];
+          if (!fromPoint || !toPoint) return null;
+          return (
+            <line
+              key={`segment-${segment.from}-${segment.to}`}
+              x1={fromPoint.x}
+              y1={fromPoint.y}
+              x2={toPoint.x}
+              y2={toPoint.y}
+              stroke={segment.color}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+            />
+          );
+        })}
+
+        {plotted.map((point, index) => {
+          if (!point) return null;
+          const pointColor = point.value > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE;
+          return (
+            <circle key={index} cx={point.x} cy={point.y} r="5" fill={pointColor} stroke="#FFFFFF" strokeWidth="2" />
+          );
+        })}
+
+        {hourLabels.map((label, index) => (
+          <text key={index} x={label.x} y="175" fontSize="12" fill="#E5E7EB" textAnchor="middle">
+            {label.label}
+          </text>
+        ))}
+      </svg>
+    );
+  };
 
   const sensorGraphReadings = (sensor: SensorWithReadings): WaterLevelReading[] => {
+    const key = normalizeSensorTypeKey(sensor);
+    if (key === 'water_surface' || key === 'water_underground') {
+      const now = new Date();
+      now.setSeconds(0, 0);
+      if (now.getMinutes() > 0) {
+        now.setHours(now.getHours() + 1, 0, 0, 0);
+      } else {
+        now.setMinutes(0, 0, 0);
+      }
+
+      const chartEnd = now.getTime();
+      const windowMs = 6 * 60 * 60 * 1000;
+      const bucketMs = 30 * 60 * 1000;
+      const chartStart = chartEnd - windowMs;
+
+      const points = (sensor.readings || [])
+        .map((r) => {
+          const ts = new Date(r.time_stamp).getTime();
+          return {
+            ts,
+            value: Number(r.raw_value),
+          };
+        })
+        .filter((r) => Number.isFinite(r.ts) && Number.isFinite(r.value) && r.ts >= chartStart && r.ts <= chartEnd)
+        .sort((a, b) => a.ts - b.ts);
+
+      const sampled: WaterLevelReading[] = [];
+      let pointIndex = 0;
+
+      for (let i = 0; i <= windowMs / bucketMs; i += 1) {
+        const bucketEnd = chartStart + i * bucketMs;
+        const bucketStart = bucketEnd - bucketMs;
+        let latestInBucket: { ts: number; value: number } | null = null;
+
+        while (pointIndex < points.length && points[pointIndex].ts <= bucketEnd) {
+          if (points[pointIndex].ts >= bucketStart) {
+            latestInBucket = points[pointIndex];
+          }
+          pointIndex += 1;
+        }
+
+        const tsIso = new Date(bucketEnd).toISOString();
+        sampled.push({
+          hour: tsIso,
+          value: latestInBucket ? latestInBucket.value : null,
+          timestamp: tsIso,
+        });
+      }
+
+      return sampled;
+    }
+
     const now = Date.now();
     const oneHourMs = 60 * 60 * 1000;
     const start = now - oneHourMs;
@@ -663,22 +1019,6 @@ function DashboardPageContent() {
     }
 
     return sampled;
-  };
-
-  const sensorPowerState = (sensor: SensorWithReadings): { isOn: boolean; reason: string } => {
-    const statusRaw = (sensor.status || '').toLowerCase();
-    const connected =
-      statusRaw.includes('online') ||
-      statusRaw.includes('active') ||
-      statusRaw.includes('connected') ||
-      statusRaw.includes('on');
-
-    const latestTs = sensor.readings?.[0]?.time_stamp ? new Date(sensor.readings[0].time_stamp).getTime() : null;
-    const hasRecentReading = latestTs !== null && Date.now() - latestTs <= 60 * 60 * 1000;
-
-    if (!connected) return { isOn: false, reason: 'Disconnected' };
-    if (!hasRecentReading) return { isOn: false, reason: 'No reading for 1h' };
-    return { isOn: true, reason: 'Reading' };
   };
 
   const normalizeSensorTypeKey = (
@@ -775,27 +1115,21 @@ function DashboardPageContent() {
       .filter((item): item is { key: CanonicalSensorKey; sensor: SensorWithReadings } => item !== null);
   }, [sensorsList]);
 
-  useEffect(() => {
-    if (graphSensors.length === 0) {
-      setVisibleGraphCount(0);
-      return;
-    }
-    setVisibleGraphCount(1);
-    let count = 1;
-    const interval = setInterval(() => {
-      count += 1;
-      setVisibleGraphCount(Math.min(count, graphSensors.length));
-      if (count >= graphSensors.length) clearInterval(interval);
-    }, 220);
-    return () => clearInterval(interval);
-  }, [graphSensors.length]);
+  const waterLevelGraphState = useMemo(() => {
+    const hasRecentReading = waterLevelReadings.some((reading) => typeof reading.value === 'number');
+    return hasRecentReading
+      ? { isOn: true, reason: 'Reading' }
+      : { isOn: false, reason: 'No reading for 6h' };
+  }, [waterLevelReadings]);
+
+  const graphsReady = sensorsLoadedOnce && waterLevelGraphLoadedOnce;
 
   const formatHourlyTime = (timeStr: string): string => {
     const date = new Date(timeStr);
     const hours = date.getHours();
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const displayHour = hours % 12 || 12;
-    return `${displayHour} ${ampm}`;
+    return `${displayHour}:${date.getMinutes().toString().padStart(2, '0')} ${ampm.toLowerCase()}`;
   };
 
   const formatDailyDate = (dateStr: string, index: number): string => {
@@ -1009,19 +1343,48 @@ function DashboardPageContent() {
               </div>
             </div>
 
-            <div className="dashboard-section">
-              <div className="panel-inner">
-                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>Water Level Surface</div>
-                <div style={{ width: '100%', height: 200, position: 'relative' }}>
-                  {renderWaterLevelGraph()}
+            {!graphsReady && (
+              <div className="dashboard-section">
+                <div className="panel-inner">
+                  <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="muted">Loading sensor graphs...</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {graphSensors.slice(0, visibleGraphCount).map((sensor, index) => {
-              const state = sensorPowerState(sensor);
+            {graphsReady && (
+              <div className="dashboard-section">
+                <div className="panel-inner">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div className="panel-title" style={{ fontSize: 14 }}>Water Level Surface</div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        borderRadius: 999,
+                        background: waterLevelGraphState.isOn ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+                        color: waterLevelGraphState.isOn ? '#86efac' : '#fca5a5',
+                      }}
+                    >
+                      {waterLevelGraphState.isOn ? 'ON' : 'OFF'} - {waterLevelGraphState.reason}
+                    </div>
+                  </div>
+                  <div style={{ width: '100%', height: 200, position: 'relative' }}>
+                    {renderWaterLevelGraph()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {graphsReady && graphSensors.map((sensor) => {
               const displayName = renderGraphTitle(sensor);
               const graphReadings = sensorGraphReadings(sensor);
+              const sensorKey = normalizeSensorTypeKey(sensor);
+              const state = graphReadings.some((reading) => typeof reading.value === 'number')
+                ? { isOn: true, reason: 'Reading' }
+                : { isOn: false, reason: 'No reading for 6h' };
               return (
                 <div className="dashboard-section" key={`graph-${sensor.sensor_id}`}>
                   <div className="panel-inner">
@@ -1043,22 +1406,22 @@ function DashboardPageContent() {
                       </div>
                     </div>
                     <div style={{ width: '100%', height: 200, position: 'relative' }}>
-                      {renderSensorGraph(
-                        graphReadings,
-                        sensor.unit || (
-                          normalizeSensorTypeKey(sensor) === 'rain_intensity'
-                            ? 'mm'
-                            : normalizeSensorTypeKey(sensor) === 'temperature'
-                              ? '°C'
-                              : 'cm'
+                      {(sensorKey === 'water_surface' || sensorKey === 'water_underground')
+                        ? renderWaterLevelStyleSensorGraph(
+                          graphReadings,
+                          sensor.unit || 'cm'
                         )
-                      )}
+                        : renderSensorGraph(
+                          graphReadings,
+                          sensor.unit || (
+                            sensorKey === 'rain_intensity'
+                              ? 'mm'
+                              : sensorKey === 'temperature'
+                                ? '°C'
+                                : 'cm'
+                          )
+                        )}
                     </div>
-                    {visibleGraphCount < graphSensors.length && sensor === graphSensors[visibleGraphCount - 1] && (
-                      <div className="muted" style={{ paddingTop: 8, textAlign: 'center', fontSize: 12 }}>
-                        Loading graphs...
-                      </div>
-                    )}
                   </div>
                 </div>
               );
