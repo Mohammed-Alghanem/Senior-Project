@@ -18,6 +18,8 @@ import FastWindsPng from '../../SVGs/Fast winds.png';
 import MoonCloudZapPng from '../../SVGs/Moon cloud zap.png';
 import CloudAngledRainZapPng from '../../SVGs/Cloud angled rain zap.png';
 import CloudHailstonePng from '../../SVGs/Cloud hailstone.png';
+import EyeSvg from '../../SVGs/eye.svg';
+import RaindropSvg from '../../SVGs/raindrop.svg';
 
 type LocationSummary = {
   location_id: bigint | number;
@@ -75,6 +77,18 @@ type SensorWithReadings = {
   type_name: string | null;
   unit: string | null;
   readings: { time_stamp: string; raw_value: number }[];
+};
+
+type CanonicalSensorKey = 'temperature' | 'water_surface' | 'water_underground' | 'rain_intensity';
+
+const GRAPH_DISPLAY_ORDER: CanonicalSensorKey[] = ['water_surface', 'water_underground', 'rain_intensity', 'temperature'];
+const SENSOR_SECTION_ORDER: CanonicalSensorKey[] = [...GRAPH_DISPLAY_ORDER];
+
+const SENSOR_DISPLAY_LABELS: Record<CanonicalSensorKey, string> = {
+  temperature: 'Temperature',
+  water_surface: 'Water Level Surface',
+  water_underground: 'Water Level Underground',
+  rain_intensity: 'Rain Intensity',
 };
 
 const getForecastIcon = (
@@ -274,8 +288,12 @@ function DashboardPageContent() {
   const [rainIntensity, setRainIntensity] = useState<SensorData>({ value: null, unit: null });
 
   // Weather data
+  const [precipitation, setPrecipitation] = useState<number | null>(null);
+  const [weatherTemperature, setWeatherTemperature] = useState<number | null>(null);
   const [humidity, setHumidity] = useState<number | null>(null);
   const [wind, setWind] = useState<number | null>(null);
+  const [realFeel, setRealFeel] = useState<number | null>(null);
+  const [visibility, setVisibility] = useState<number | null>(null);
   const [hourlyForecast, setHourlyForecast] = useState<HourlyForecast[]>([]);
   const [dailyForecast, setDailyForecast] = useState<DailyForecast[]>([]);
 
@@ -425,9 +443,17 @@ function DashboardPageContent() {
         const currentRes = await fetch(`/api/weather?type=current&${latLon}`);
         if (currentRes.ok) {
           const currentData = await currentRes.json();
+          const temperatureValue = Number(currentData.temperature);
+          setWeatherTemperature(Number.isFinite(temperatureValue) ? temperatureValue : null);
+          const precipitationValue = Number(currentData.precipitation);
+          setPrecipitation(Number.isFinite(precipitationValue) ? precipitationValue : null);
           const humidityValue = Number(currentData.humidity);
           setHumidity(Number.isFinite(humidityValue) ? humidityValue : null);
           setWind(currentData.wind != null ? parseFloat(currentData.wind) : null);
+          const apparentTemperatureValue = Number(currentData.apparent_temperature);
+          setRealFeel(Number.isFinite(apparentTemperatureValue) ? apparentTemperatureValue : null);
+          const visibilityValue = Number(currentData.visibility);
+          setVisibility(Number.isFinite(visibilityValue) ? visibilityValue : null);
         }
       } catch (err) {
         console.error('Error fetching current weather', err);
@@ -593,28 +619,50 @@ function DashboardPageContent() {
 
   const sensorGraphReadings = (sensor: SensorWithReadings): WaterLevelReading[] => {
     const now = Date.now();
-    const fourHoursAgo = now - 4 * 60 * 60 * 1000;
-    const points = (sensor.readings || [])
+    const oneHourMs = 60 * 60 * 1000;
+    const start = now - oneHourMs;
+
+    const allPoints = (sensor.readings || [])
       .map((r) => {
         const ts = new Date(r.time_stamp).getTime();
         return {
           ts,
-          iso: new Date(ts).toISOString(),
           value: Number(r.raw_value),
         };
       })
-      .filter((r) => Number.isFinite(r.ts) && Number.isFinite(r.value) && r.ts >= fourHoursAgo && r.ts <= now)
+      .filter((r) => Number.isFinite(r.ts) && Number.isFinite(r.value))
       .sort((a, b) => a.ts - b.ts);
 
-    const sampled = points.slice(-11).map((p) => ({
-      hour: p.iso,
-      value: p.value,
-      timestamp: p.iso,
-    }));
+    const points = allPoints.filter((r) => r.ts >= start && r.ts <= now);
 
-    // Keep the same graph style: append current-time tick.
-    const nowIso = new Date(now).toISOString();
-    return [...sampled, { hour: nowIso, value: null, timestamp: nowIso }];
+    if (points.length === 0) return [];
+
+    const bucketCount = 10;
+    const bucketMs = oneHourMs / bucketCount;
+    const sampled: WaterLevelReading[] = [];
+    let pointIndex = 0;
+
+    for (let i = 0; i <= bucketCount; i += 1) {
+      const bucketEnd = start + i * bucketMs;
+      const bucketStart = bucketEnd - bucketMs;
+      let latestInBucket: { ts: number; value: number } | null = null;
+
+      while (pointIndex < points.length && points[pointIndex].ts <= bucketEnd) {
+        if (points[pointIndex].ts >= bucketStart) {
+          latestInBucket = points[pointIndex];
+        }
+        pointIndex += 1;
+      }
+
+      const tsIso = new Date(bucketEnd).toISOString();
+      sampled.push({
+        hour: tsIso,
+        value: latestInBucket ? latestInBucket.value : null,
+        timestamp: tsIso,
+      });
+    }
+
+    return sampled;
   };
 
   const sensorPowerState = (sensor: SensorWithReadings): { isOn: boolean; reason: string } => {
@@ -633,18 +681,99 @@ function DashboardPageContent() {
     return { isOn: true, reason: 'Reading' };
   };
 
+  const normalizeSensorTypeKey = (
+    sensor: SensorWithReadings
+  ): CanonicalSensorKey | 'other' => {
+    const rawType = (sensor.type_name || '').trim().toLowerCase();
+    const compactType = rawType.replace(/[\s_-]/g, '');
+    const serial = (sensor.serial_no || '').trim().toLowerCase().replace(/[\s_-]/g, '');
+
+    if (rawType === 'temperature') return 'temperature';
+    // AQ-02 ultrasonic is the surface water-level probe in this deployment.
+    if (serial.includes('aq02')) return 'water_surface';
+    // Sewer/underground probe serials are usually AQ-03.
+    if (serial.includes('aq03')) return 'water_underground';
+    if (rawType === 'water level') return 'water_surface';
+    if (rawType === 'sewage water level' || rawType === 'ultrasonic') return 'water_underground';
+    if (compactType === 'rainintensity' || compactType === 'aq04rainintensity' || serial === 'aq04rainintensity') {
+      return 'rain_intensity';
+    }
+
+    return 'other';
+  };
+
+  const normalizeSensorDisplayName = (sensor: SensorWithReadings): string => {
+    const key = normalizeSensorTypeKey(sensor);
+    if (key !== 'other') return SENSOR_DISPLAY_LABELS[key];
+
+    return (sensor.type_name || '').trim() || 'Sensor';
+  };
+
+  const renderGraphTitle = (sensor: SensorWithReadings): React.ReactNode => {
+    const key = normalizeSensorTypeKey(sensor);
+    if (key === 'water_underground') {
+      return (
+        <>
+          Water Level <strong>Underground</strong>
+        </>
+      );
+    }
+    if (key === 'water_surface') return 'Water Level Surface';
+    if (key === 'rain_intensity') return 'Rain Intensity';
+    if (key === 'temperature') return 'Temperature';
+    return normalizeSensorDisplayName(sensor);
+  };
+
   const graphSensors = useMemo(
-    () =>
-      sensorsList.filter((sensor) => {
+    () => {
+      const filtered = sensorsList.filter((sensor) => {
         const type = sensor.type_name || '';
         const serial = sensor.serial_no || '';
         if (type === 'Power Outage') return false;
         if (type === 'Humidity') return false;
         if (serial === 'AQ-02-Ultrasonic') return false;
         return true;
-      }),
+      });
+
+      // Keep graph cards in the same visual order used by the dashboard sections.
+      return filtered.sort((a, b) => {
+        const aKey = normalizeSensorTypeKey(a);
+        const bKey = normalizeSensorTypeKey(b);
+        const aOrder = aKey === 'other' ? Number.MAX_SAFE_INTEGER : GRAPH_DISPLAY_ORDER.indexOf(aKey);
+        const bOrder = bKey === 'other' ? Number.MAX_SAFE_INTEGER : GRAPH_DISPLAY_ORDER.indexOf(bKey);
+        return aOrder - bOrder;
+      });
+    },
     [sensorsList]
   );
+
+  const sensorCards = useMemo(() => {
+    const pickNewestByKey = new Map<CanonicalSensorKey, SensorWithReadings>();
+
+    const latestTs = (sensor: SensorWithReadings): number => {
+      const ts = sensor.readings?.[0]?.time_stamp;
+      if (!ts) return -1;
+      const parsed = new Date(ts).getTime();
+      return Number.isFinite(parsed) ? parsed : -1;
+    };
+
+    for (const sensor of sensorsList) {
+      const key = normalizeSensorTypeKey(sensor);
+      if (key === 'other') continue;
+
+      const current = pickNewestByKey.get(key);
+      if (!current || latestTs(sensor) > latestTs(current)) {
+        pickNewestByKey.set(key, sensor);
+      }
+    }
+
+    return SENSOR_SECTION_ORDER
+      .map((key) => {
+        const sensor = pickNewestByKey.get(key);
+        return sensor ? { key, sensor } : null;
+      })
+      .filter((item): item is { key: CanonicalSensorKey; sensor: SensorWithReadings } => item !== null);
+  }, [sensorsList]);
 
   useEffect(() => {
     if (graphSensors.length === 0) {
@@ -740,7 +869,7 @@ function DashboardPageContent() {
               </div>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 56, fontWeight: 900 }}>
-                  {temperature.value !== null ? `${Math.round(temperature.value)}°` : '--°'}
+                  {weatherTemperature !== null ? `${Math.round(weatherTemperature)}°` : '--°'}
                 </div>
                 <div style={{ opacity: 0.9 }}>
                   <svg width={48} height={28} viewBox="0 0 48 28" aria-hidden>
@@ -783,68 +912,53 @@ function DashboardPageContent() {
               </div>
             </div>
 
-            <div className="two-panel-container dashboard-section">
+            <div className="dashboard-section">
               <div className="panel-inner" style={{ display: 'flex', flexDirection: 'column' }}>
-                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>Air Conditions</div>
+                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>Air conditions</div>
                 <div className="air-conditions-grid" style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Image src="/temperature.svg" alt="Real Feel" width={24} height={24} />
-                      <div className="muted" style={{ fontSize: 12 }}>Real Feel</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
+                      <Image src="/temperature.svg" alt="Temperature" width={24} height={24} />
+                      <div className="muted" style={{ fontSize: 12 }}>Real feel</div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 32 }}>
-                      {temperature.value !== null ? `${Math.round(temperature.value)}°` : '--°'}
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
+                      {realFeel !== null ? `${Math.round(realFeel)}°` : '--°'}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
+                      <Image src={RaindropSvg} alt="Precipitation" width={24} height={24} />
+                      <div className="muted" style={{ fontSize: 12 }}>Precipitation</div>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
+                      {precipitation !== null ? `${precipitation.toFixed(1)} mm` : '-- mm'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
                       <Image src="/wind.svg" alt="Wind" width={24} height={24} />
                       <div className="muted" style={{ fontSize: 12 }}>Wind</div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 32 }}>
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
                       {wind !== null ? `${wind.toFixed(1)} km/h` : '-- km/h'}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
                       <Image src="/Water_Drop.svg" alt="Humidity" width={24} height={24} />
                       <div className="muted" style={{ fontSize: 12 }}>Humidity</div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 32 }}>
-                      {humidity !== null ? `${humidity}%` : '--%'}
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
+                      {humidity !== null ? `${humidity} %` : '-- %'}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Image src="/water_level.svg" alt="Water Level" width={24} height={24} />
-                      <div className="muted" style={{ fontSize: 12 }}>Water Level</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
+                      <Image src={EyeSvg} alt="Visibility" width={24} height={24} />
+                      <div className="muted" style={{ fontSize: 12 }}>Visibility</div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 32 }}>
-                      {waterLevel.value !== null ? `${waterLevel.value.toFixed(1)} ${waterLevel.unit || 'cm'}` : '-- cm'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="panel-inner">
-                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>System Status</div>
-                <div className="system-status-grid">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Image src="/pipe.svg" alt="Infrastructure" width={24} height={24} />
-                      <div className="muted" style={{ fontSize: 12 }}>Infrastructure</div>
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 16, marginLeft: 32 }}>Stable</div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Image src="/raindrop.svg" alt="Rain Intensity" width={24} height={24} />
-                      <div className="muted" style={{ fontSize: 12 }}>Rain Intensity</div>
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 16, marginLeft: 32 }}>
-                      {rainIntensity.value !== null
-                        ? `${Number.isInteger(rainIntensity.value) ? rainIntensity.value : rainIntensity.value.toFixed(1)} ${rainIntensity.unit || 'mm'}`
-                        : '-- mm'}
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
+                      {visibility !== null ? `${visibility >= 1000 ? `${(visibility / 1000).toFixed(1)} km` : `${Math.round(visibility)} m`}` : '--'}
                     </div>
                   </div>
                 </div>
@@ -853,7 +967,51 @@ function DashboardPageContent() {
 
             <div className="dashboard-section">
               <div className="panel-inner">
-                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>Water Level</div>
+                <div className="panel-title" style={{ fontSize: 14, marginBottom: 12 }}>Sensor readings - {locationName}</div>
+                {(() => {
+                  if (sensorCards.length === 0 && !locationsLoading) {
+                    return <div className="muted" style={{ padding: 16 }}>{dbUnavailable ? 'Database unavailable.' : 'No sensors for this location.'}</div>;
+                  }
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                      {sensorCards.map(({ key, sensor }) => {
+                        const latest = sensor.readings?.[0];
+                        const value = latest ? Number(latest.raw_value) : null;
+                        const displayName = SENSOR_DISPLAY_LABELS[key];
+                        const displayValue = value !== null
+                          ? key === 'rain_intensity'
+                            ? `${Number.isInteger(value) ? value : value.toFixed(1)} ${sensor.unit || 'mm'}`
+                            : `${typeof value === 'number' && value % 1 !== 0 ? value.toFixed(1) : value}${sensor.unit ? ` ${sensor.unit}` : ''}`
+                          : '--';
+                        return (
+                          <div
+                            key={sensor.sensor_id}
+                            style={{
+                              padding: '10px 12px',
+                              background: 'rgba(255,255,255,0.015)',
+                              borderRadius: 8,
+                              border: '1px solid rgba(255,255,255,0.06)',
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{displayName}</div>
+                            <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: 0.1 }}>{displayValue}</div>
+                            {latest && (
+                              <div className="muted" style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
+                                {new Date(latest.time_stamp).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <div className="dashboard-section">
+              <div className="panel-inner">
+                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>Water Level Surface</div>
                 <div style={{ width: '100%', height: 200, position: 'relative' }}>
                   {renderWaterLevelGraph()}
                 </div>
@@ -862,14 +1020,13 @@ function DashboardPageContent() {
 
             {graphSensors.slice(0, visibleGraphCount).map((sensor, index) => {
               const state = sensorPowerState(sensor);
-              const displayName = sensor.type_name ?? 'Sensor';
+              const displayName = renderGraphTitle(sensor);
               const graphReadings = sensorGraphReadings(sensor);
               return (
                 <div className="dashboard-section" key={`graph-${sensor.sensor_id}`}>
                   <div className="panel-inner">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <div>
-                        <div className="muted" style={{ fontSize: 10 }}>{sensor.serial_no ?? `ID ${sensor.sensor_id}`}</div>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{displayName}</div>
                       </div>
                       <div
@@ -886,7 +1043,16 @@ function DashboardPageContent() {
                       </div>
                     </div>
                     <div style={{ width: '100%', height: 200, position: 'relative' }}>
-                      {renderSensorGraph(graphReadings, sensor.unit || (sensor.type_name === 'Rain Intensity' ? 'mm' : 'cm'))}
+                      {renderSensorGraph(
+                        graphReadings,
+                        sensor.unit || (
+                          normalizeSensorTypeKey(sensor) === 'rain_intensity'
+                            ? 'mm'
+                            : normalizeSensorTypeKey(sensor) === 'temperature'
+                              ? '°C'
+                              : 'cm'
+                        )
+                      )}
                     </div>
                     {visibleGraphCount < graphSensors.length && sensor === graphSensors[visibleGraphCount - 1] && (
                       <div className="muted" style={{ paddingTop: 8, textAlign: 'center', fontSize: 12 }}>
@@ -897,61 +1063,6 @@ function DashboardPageContent() {
                 </div>
               );
             })}
-
-            <div className="dashboard-section">
-              <div className="panel-inner">
-                <div className="panel-title" style={{ fontSize: 14, marginBottom: 8 }}>Sensors – Al Qatif</div>
-                <p className="muted" style={{ fontSize: 12, marginBottom: 16 }}>Real Feel, Water Level, Rain Intensity, Sewage Water Level.</p>
-                {(() => {
-                  const fourTypes = ['Temperature', 'Water Level', 'Ultrasonic', 'Rain Intensity', 'Sewage Water Level'];
-                  const displayNames: Record<string, string> = {
-                    'Temperature': 'Real Feel',
-                    'Water Level': 'Water Level',
-                    'Ultrasonic': 'Water Level',
-                    'Sewage Water Level': 'Sewage Water Level',
-                    'Rain Intensity': 'Rain Intensity',
-                  };
-                  const filtered = sensorsList.filter((s) => fourTypes.includes(s.type_name || ''));
-                  if (filtered.length === 0 && !locationsLoading) {
-                    return <div className="muted" style={{ padding: 16 }}>{dbUnavailable ? 'Database unavailable.' : 'No sensors for this location.'}</div>;
-                  }
-                  return (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                      {filtered.map((sensor) => {
-                        const latest = sensor.readings?.[0];
-                        const value = latest ? Number(latest.raw_value) : null;
-                        const displayName = displayNames[sensor.type_name || ''] ?? sensor.type_name ?? 'Sensor';
-                        const displayValue = value !== null
-                          ? sensor.type_name === 'Rain Intensity'
-                            ? `${Number.isInteger(value) ? value : value.toFixed(1)} ${sensor.unit || 'mm'}`
-                            : `${typeof value === 'number' && value % 1 !== 0 ? value.toFixed(1) : value}${sensor.unit ? ` ${sensor.unit}` : ''}`
-                          : '--';
-                        return (
-                          <div
-                            key={sensor.sensor_id}
-                            style={{
-                              padding: '10px 12px',
-                              background: 'rgba(255,255,255,0.015)',
-                              borderRadius: 8,
-                              border: '1px solid rgba(255,255,255,0.06)',
-                            }}
-                          >
-                            <div className="muted" style={{ fontSize: 10, marginBottom: 2, opacity: 0.75 }}>{sensor.serial_no ?? `ID ${sensor.sensor_id}`}</div>
-                            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{displayName}</div>
-                            <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: 0.1 }}>{displayValue}</div>
-                            {latest && (
-                              <div className="muted" style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
-                                {new Date(latest.time_stamp).toLocaleString()}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
 
           </div>
 

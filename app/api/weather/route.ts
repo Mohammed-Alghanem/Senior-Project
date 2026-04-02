@@ -1,47 +1,6 @@
 import { NextResponse } from 'next/server';
 
 const OPEN_METEO_BASE = 'https://api.open-meteo.com/v1/forecast';
-const WEATHER_CACHE_TTL_MS = 5 * 60 * 1000;
-const OPEN_METEO_TIMEOUT_MS = 8000;
-const OPEN_METEO_RETRIES = 2;
-
-type OpenMeteoResponse = {
-  current?: {
-    relative_humidity_2m?: number | null;
-    wind_speed_10m?: number | null;
-  };
-  hourly?: {
-    time?: string[];
-    temperature_2m?: number[];
-    weather_code?: number[];
-    is_day?: number[];
-    wind_speed_10m?: number[];
-  };
-  daily?: {
-    time?: string[];
-    temperature_2m_max?: number[];
-    temperature_2m_min?: number[];
-    weather_code?: number[];
-    wind_speed_10m_max?: number[];
-  };
-};
-type WeatherCacheEntry = {
-  expiresAt: number;
-  data: OpenMeteoResponse;
-};
-
-const globalWeatherCache = globalThis as typeof globalThis & {
-  __openMeteoCache?: Map<string, WeatherCacheEntry>;
-};
-
-const weatherCache = globalWeatherCache.__openMeteoCache ?? new Map<string, WeatherCacheEntry>();
-if (!globalWeatherCache.__openMeteoCache) {
-  globalWeatherCache.__openMeteoCache = weatherCache;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function mapCondition(weatherCode: number, windKmh?: number): string {
   const isNonPrecipCode = weatherCode >= 0 && weatherCode <= 3;
@@ -58,16 +17,10 @@ function mapCondition(weatherCode: number, windKmh?: number): string {
 }
 
 async function fetchOpenMeteo(lat: number, lon: number) {
-  const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
-  const cached = weatherCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.data;
-  }
-
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
-    current: 'temperature_2m,relative_humidity_2m,wind_speed_10m',
+    current: 'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,visibility,precipitation',
     hourly: 'temperature_2m,weather_code,is_day,wind_speed_10m',
     daily: 'temperature_2m_max,temperature_2m_min,weather_code,wind_speed_10m_max',
     timezone: 'auto',
@@ -77,47 +30,16 @@ async function fetchOpenMeteo(lat: number, lon: number) {
     forecast_hours: '8',
   });
 
-  const url = `${OPEN_METEO_BASE}?${params.toString()}`;
-
-  for (let attempt = 0; attempt <= OPEN_METEO_RETRIES; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), OPEN_METEO_TIMEOUT_MS);
-
-    try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        // Keep weather traffic low; stale data for a few minutes is acceptable.
-        next: { revalidate: 300 },
-      });
-
-      if (!response.ok) {
-        const shouldRetry = response.status >= 500 && attempt < OPEN_METEO_RETRIES;
-        if (shouldRetry) {
-          await sleep(250 * (attempt + 1));
-          continue;
-        }
-        throw new Error(`Open-Meteo error: ${response.status}`);
-      }
-
-      const data = (await response.json()) as OpenMeteoResponse;
-      weatherCache.set(cacheKey, {
-        data,
-        expiresAt: Date.now() + WEATHER_CACHE_TTL_MS,
-      });
-      return data;
-    } catch (error) {
-      const isLastAttempt = attempt === OPEN_METEO_RETRIES;
-      if (isLastAttempt) {
-        console.error('Open-Meteo fetch error', error);
-        return null;
-      }
-      await sleep(250 * (attempt + 1));
-    } finally {
-      clearTimeout(timeout);
+  try {
+    const response = await fetch(`${OPEN_METEO_BASE}?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Open-Meteo error: ${response.status}`);
     }
+    return await response.json();
+  } catch (error) {
+    console.error('Open-Meteo fetch error', error);
+    return null;
   }
-
-  return null;
 }
 
 export async function GET(request: Request) {
@@ -171,7 +93,7 @@ export async function GET(request: Request) {
       }, 0);
 
       let start = Math.max(0, closestNowIndex - 2);
-      const end = Math.min(rows.length, start + 8);
+      let end = Math.min(rows.length, start + 8);
       if (end - start < 8) {
         start = Math.max(0, end - 8);
       }
@@ -200,11 +122,19 @@ export async function GET(request: Request) {
 
     const current = data.current || {};
     const humidity = current.relative_humidity_2m ?? null;
+    const temperature = current.temperature_2m ?? null;
     const windKmh = current.wind_speed_10m != null ? Number(current.wind_speed_10m).toFixed(1) : null;
+    const apparentTemperature = current.apparent_temperature ?? null;
+    const visibility = current.visibility ?? null;
+    const precipitation = current.precipitation ?? null;
 
     return NextResponse.json({
+      temperature,
       humidity,
       wind: windKmh,
+      apparent_temperature: apparentTemperature,
+      visibility,
+      precipitation,
     });
   } catch (error) {
     console.error('Error in weather API', error);

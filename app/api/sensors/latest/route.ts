@@ -18,6 +18,7 @@ export async function GET(request: Request) {
 
   try {
     const locId = BigInt(locationId);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
     const sensorTypes = await prisma.sensor_type.findMany({
       where: {
@@ -52,6 +53,11 @@ export async function GET(request: Request) {
       include: {
         sensor_type: { select: { type_name: true, unit: true } },
         readings: {
+          where: {
+            time_stamp: {
+              gte: oneHourAgo,
+            },
+          },
           orderBy: { time_stamp: 'desc' },
           take: 1,
           select: { raw_value: true, time_stamp: true },

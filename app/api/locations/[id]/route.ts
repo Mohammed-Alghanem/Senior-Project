@@ -18,6 +18,7 @@ export async function GET(
 
   try {
     const locationId = BigInt(id);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const location = await prisma.location.findUnique({
       where: { location_id: locationId },
       include: {
@@ -27,8 +28,13 @@ export async function GET(
               include: {
                 sensor_type: true,
                 readings: {
+                  where: {
+                    time_stamp: {
+                      gte: oneHourAgo,
+                    },
+                  },
                   orderBy: { time_stamp: 'desc' },
-                  take: 500,
+                  take: 120,
                 },
               },
             },
