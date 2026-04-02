@@ -346,7 +346,7 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 7000;
+    const pollMs = 7000;
     const fetchSensorsForLocation = async () => {
       try {
         const res = await fetch(`/api/locations/${locationId}`, { cache: 'no-store' });
@@ -368,11 +368,11 @@ function DashboardPageContent() {
     fetchSensorsForLocation();
     const t = setInterval(fetchSensorsForLocation, pollMs);
     return () => clearInterval(t);
-  }, [locationId, dbUnavailable]);
+  }, [locationId]);
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 7000;
+    const pollMs = 7000;
 
     const fetchSensorData = async () => {
       try {
@@ -396,11 +396,11 @@ function DashboardPageContent() {
     fetchSensorData();
     const sensorInterval = setInterval(fetchSensorData, pollMs);
     return () => clearInterval(sensorInterval);
-  }, [locationId, dbUnavailable]);
+  }, [locationId]);
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 7000;
+    const pollMs = 7000;
 
     const fetchWaterLevelGraph = async () => {
       try {
@@ -422,11 +422,11 @@ function DashboardPageContent() {
     fetchWaterLevelGraph();
     const graphInterval = setInterval(fetchWaterLevelGraph, pollMs);
     return () => clearInterval(graphInterval);
-  }, [locationId, dbUnavailable]);
+  }, [locationId]);
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 7000;
+    const pollMs = 7000;
 
     const fetchPrediction = async () => {
       try {
@@ -443,7 +443,7 @@ function DashboardPageContent() {
     fetchPrediction();
     const predictionInterval = setInterval(fetchPrediction, pollMs);
     return () => clearInterval(predictionInterval);
-  }, [locationId, dbUnavailable]);
+  }, [locationId]);
 
   useEffect(() => {
     const fetchCurrentWeather = async () => {
