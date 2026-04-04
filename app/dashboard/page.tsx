@@ -145,24 +145,32 @@ function HourCard({
       style={{
         flex: '1 1 0',
         minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
         textAlign: 'center',
-        padding: '0 8px',
       }}
     >
       <div
         style={{
-          width: 74,
-          height: 74,
+          width: 'clamp(44px, 12vw, 74px)',
+          height: 'clamp(44px, 12vw, 74px)',
           margin: '0 auto',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Image src={iconSrc} alt="Forecast icon" width={66} height={66} />
+        <Image
+          src={iconSrc}
+          alt="Forecast icon"
+          width={66}
+          height={66}
+          style={{ width: '100%', height: '100%', maxWidth: 66, maxHeight: 66, objectFit: 'contain', objectPosition: 'center center', display: 'block' }}
+        />
       </div>
-      <div style={{ marginTop: 0, color: 'var(--text)', fontSize: 14 }}>{time}</div>
-      <div style={{ marginTop: 2, color: 'var(--text)', fontWeight: 500, fontSize: 24, lineHeight: 1 }}>{temp}°</div>
+      <div style={{ marginTop: 0, color: 'var(--text)', fontSize: 'clamp(11px, 3.2vw, 14px)' }}>{time}</div>
+      <div style={{ marginTop: 6, color: 'var(--text)', fontWeight: 500, fontSize: 'clamp(14px, 4vw, 18px)', lineHeight: 1 }}>{temp}°</div>
     </div>
   );
 }
