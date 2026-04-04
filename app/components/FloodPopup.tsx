@@ -1,7 +1,5 @@
 'use client';
 
-import Image from 'next/image';
-
 interface FloodPopupProps {
   type: 'caution' | 'flood';
   timeRemaining?: string;
@@ -37,31 +35,18 @@ export function FloodPopup({ type, timeRemaining, onClose }: FloodPopupProps) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                background: 'rgba(255, 200, 0, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <span style={{ fontSize: 28 }}>⚠️</span>
-            </div>
+          <div style={{ marginBottom: 16 }}>
             <div>
               <h2 style={{ fontSize: 24, fontWeight: 700, color: '#FFC800', margin: 0 }}>
                 Flood Remaining Time
               </h2>
               <p style={{ fontSize: 16, color: '#FFFFFF', margin: '8px 0 0 0' }}>
-                Evacuate!
+                Please check meteorological status.
               </p>
             </div>
           </div>
           <p style={{ fontSize: 18, color: '#E5E7EB', marginBottom: 24 }}>
-            A flood will occur within <strong style={{ color: '#FFC800' }}>{timeRemaining}</strong>
+            A flood is expected to occur within <strong style={{ color: '#FFC800' }}>{timeRemaining}</strong>
           </p>
           <button
             onClick={onClose}

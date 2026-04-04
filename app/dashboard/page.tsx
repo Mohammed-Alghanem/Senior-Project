@@ -18,6 +18,8 @@ import FastWindsPng from '../../SVGs/Fast winds.png';
 import MoonCloudZapPng from '../../SVGs/Moon cloud zap.png';
 import CloudAngledRainZapPng from '../../SVGs/Cloud angled rain zap.png';
 import CloudHailstonePng from '../../SVGs/Cloud hailstone.png';
+import EyeSvg from '../../SVGs/eye.svg';
+import RaindropSvg from '../../SVGs/raindrop.svg';
 
 type LocationSummary = {
   location_id: bigint | number;
@@ -75,6 +77,18 @@ type SensorWithReadings = {
   type_name: string | null;
   unit: string | null;
   readings: { time_stamp: string; raw_value: number }[];
+};
+
+type CanonicalSensorKey = 'temperature' | 'water_surface' | 'water_underground' | 'rain_intensity';
+
+const GRAPH_DISPLAY_ORDER: CanonicalSensorKey[] = ['water_surface', 'water_underground', 'rain_intensity', 'temperature'];
+const SENSOR_SECTION_ORDER: CanonicalSensorKey[] = [...GRAPH_DISPLAY_ORDER];
+
+const SENSOR_DISPLAY_LABELS: Record<CanonicalSensorKey, string> = {
+  temperature: 'Temperature',
+  water_surface: 'Water Level Surface',
+  water_underground: 'Water Level Underground',
+  rain_intensity: 'Rain Intensity',
 };
 
 const getForecastIcon = (
@@ -274,25 +288,30 @@ function DashboardPageContent() {
   const [rainIntensity, setRainIntensity] = useState<SensorData>({ value: null, unit: null });
 
   // Weather data
+  const [precipitation, setPrecipitation] = useState<number | null>(null);
+  const [weatherTemperature, setWeatherTemperature] = useState<number | null>(null);
   const [humidity, setHumidity] = useState<number | null>(null);
   const [wind, setWind] = useState<number | null>(null);
+  const [realFeel, setRealFeel] = useState<number | null>(null);
+  const [visibility, setVisibility] = useState<number | null>(null);
   const [hourlyForecast, setHourlyForecast] = useState<HourlyForecast[]>([]);
   const [dailyForecast, setDailyForecast] = useState<DailyForecast[]>([]);
 
   // Water level graph
   const [waterLevelReadings, setWaterLevelReadings] = useState<WaterLevelReading[]>([]);
+  const [waterLevelGraphLoadedOnce, setWaterLevelGraphLoadedOnce] = useState(false);
 
   // Prediction
   const [prediction, setPrediction] = useState<Prediction | null>(null);
 
   // Per-sensor data (Al Qatif): each sensor and its readings for correct display
   const [sensorsList, setSensorsList] = useState<SensorWithReadings[]>([]);
+  const [sensorsLoadedOnce, setSensorsLoadedOnce] = useState(false);
   const [dbUnavailable, setDbUnavailable] = useState(false);
 
   // Popups
   const [showCautionPopup, setShowCautionPopup] = useState(false);
   const [showFloodPopup, setShowFloodPopup] = useState(false);
-  const [visibleGraphCount, setVisibleGraphCount] = useState(1);
   const floodPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchParams = useSearchParams();
@@ -327,7 +346,7 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 7000;
+    const pollMs = 7000;
     const fetchSensorsForLocation = async () => {
       try {
         const res = await fetch(`/api/locations/${locationId}`, { cache: 'no-store' });
@@ -342,16 +361,18 @@ function DashboardPageContent() {
         }
       } catch (err) {
         console.error('Error fetching sensors for location', err);
+      } finally {
+        setSensorsLoadedOnce(true);
       }
     };
     fetchSensorsForLocation();
     const t = setInterval(fetchSensorsForLocation, pollMs);
     return () => clearInterval(t);
-  }, [locationId, dbUnavailable]);
+  }, [locationId]);
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 7000;
+    const pollMs = 7000;
 
     const fetchSensorData = async () => {
       try {
@@ -375,31 +396,37 @@ function DashboardPageContent() {
     fetchSensorData();
     const sensorInterval = setInterval(fetchSensorData, pollMs);
     return () => clearInterval(sensorInterval);
-  }, [locationId, dbUnavailable]);
+  }, [locationId]);
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 7000;
+    const pollMs = 7000;
 
     const fetchWaterLevelGraph = async () => {
       try {
         const res = await fetch(`/api/water-level-graph?location_id=${locationId}`, { cache: 'no-store' });
         const data = await res.json().catch(() => ({}));
         if (data.dbUnavailable) setDbUnavailable(true);
-        else if (res.ok) setWaterLevelReadings(data.readings ?? []);
+        else if (res.ok) {
+          const readings = data.readings ?? [];
+          console.log('[water-level-graph] readings inserted into graph', readings);
+          setWaterLevelReadings(readings);
+        }
       } catch (err) {
         console.error('Error fetching water level graph', err);
+      } finally {
+        setWaterLevelGraphLoadedOnce(true);
       }
     };
 
     fetchWaterLevelGraph();
     const graphInterval = setInterval(fetchWaterLevelGraph, pollMs);
     return () => clearInterval(graphInterval);
-  }, [locationId, dbUnavailable]);
+  }, [locationId]);
 
   useEffect(() => {
     if (!locationId) return;
-    const pollMs = dbUnavailable ? 30000 : 7000;
+    const pollMs = 7000;
 
     const fetchPrediction = async () => {
       try {
@@ -416,7 +443,7 @@ function DashboardPageContent() {
     fetchPrediction();
     const predictionInterval = setInterval(fetchPrediction, pollMs);
     return () => clearInterval(predictionInterval);
-  }, [locationId, dbUnavailable]);
+  }, [locationId]);
 
   useEffect(() => {
     const fetchCurrentWeather = async () => {
@@ -425,9 +452,17 @@ function DashboardPageContent() {
         const currentRes = await fetch(`/api/weather?type=current&${latLon}`);
         if (currentRes.ok) {
           const currentData = await currentRes.json();
+          const temperatureValue = Number(currentData.temperature);
+          setWeatherTemperature(Number.isFinite(temperatureValue) ? temperatureValue : null);
+          const precipitationValue = Number(currentData.precipitation);
+          setPrecipitation(Number.isFinite(precipitationValue) ? precipitationValue : null);
           const humidityValue = Number(currentData.humidity);
           setHumidity(Number.isFinite(humidityValue) ? humidityValue : null);
           setWind(currentData.wind != null ? parseFloat(currentData.wind) : null);
+          const apparentTemperatureValue = Number(currentData.apparent_temperature);
+          setRealFeel(Number.isFinite(apparentTemperatureValue) ? apparentTemperatureValue : null);
+          const visibilityValue = Number(currentData.visibility);
+          setVisibility(Number.isFinite(visibilityValue) ? visibilityValue : null);
         }
       } catch (err) {
         console.error('Error fetching current weather', err);
@@ -589,84 +624,512 @@ function DashboardPageContent() {
     );
   };
 
-  const renderWaterLevelGraph = () => renderSensorGraph(waterLevelReadings, waterLevel.unit || 'cm');
+  const renderWaterLevelGraph = () => {
+    const unitLabel = waterLevel.unit || 'cm';
+    const chartTopY = 30;
+    const chartBottomY = 150;
+    const chartHeight = chartBottomY - chartTopY;
+
+    if (waterLevelReadings.length === 0) {
+      return (
+        <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="muted">No sensor data available</div>
+        </div>
+      );
+    }
+
+    const valueReadings = waterLevelReadings.filter((r) => typeof r.value === 'number');
+    const hasValues = valueReadings.length > 0;
+    if (!hasValues) {
+      return (
+        <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="muted">No sensor data available</div>
+        </div>
+      );
+    }
+    const maxValue = hasValues ? Math.max(...valueReadings.map((r) => r.value as number), 1) : 1;
+    const minValue = hasValues ? Math.min(...valueReadings.map((r) => r.value as number), 0) : 0;
+    const valueRange = maxValue - minValue || 1;
+
+    const chartEnd = new Date();
+    chartEnd.setSeconds(0, 0);
+    if (chartEnd.getMinutes() > 0) {
+      chartEnd.setHours(chartEnd.getHours() + 1, 0, 0, 0);
+    } else {
+      chartEnd.setMinutes(0, 0, 0);
+    }
+
+    const chartStart = new Date(chartEnd);
+    chartStart.setHours(chartEnd.getHours() - 6);
+
+    const chartStartMs = chartStart.getTime();
+    const chartEndMs = chartEnd.getTime();
+    const chartRangeMs = Math.max(chartEndMs - chartStartMs, 1);
+
+    const toChartX = (ts: number): number => {
+      const clampedTs = Math.min(Math.max(ts, chartStartMs), chartEndMs);
+      return 70 + (((clampedTs - chartStartMs) / chartRangeMs) * 690);
+    };
+
+    const SPIKE_THRESHOLD_CM = 20;
+    const SAFE_BLUE = '#7C88CA';
+    const ALERT_RED = '#FF4245';
+
+    const plotted = waterLevelReadings.map((reading, index) => {
+      if (typeof reading.value !== 'number') return null;
+      const ts = new Date(reading.timestamp).getTime();
+      const fallbackTs = chartStartMs + ((index / Math.max(waterLevelReadings.length - 1, 1)) * chartRangeMs);
+      const x = toChartX(Number.isFinite(ts) ? ts : fallbackTs);
+      const normalizedValue = ((reading.value as number) - minValue) / valueRange;
+      const y = chartBottomY - (normalizedValue * chartHeight);
+      return { x, y, value: reading.value as number };
+    });
+
+    const segments: Array<{ from: number; to: number; color: string }> = [];
+    let lastValidIndex = -1;
+
+    for (let i = 0; i < waterLevelReadings.length; i += 1) {
+      if (typeof waterLevelReadings[i].value !== 'number') continue;
+
+      if (lastValidIndex !== -1) {
+        const gapSize = i - lastValidIndex - 1;
+        if (gapSize <= 2) {
+          const fromPoint = plotted[lastValidIndex];
+          const toPoint = plotted[i];
+          if (fromPoint && toPoint) {
+            segments.push({
+              from: lastValidIndex,
+              to: i,
+              color: Math.max(fromPoint.value, toPoint.value) > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE,
+            });
+          }
+        }
+      }
+
+      lastValidIndex = i;
+    }
+
+    const hourLabels = Array.from({ length: 7 }, (_, index) => {
+      const labelDate = new Date(chartStart);
+      labelDate.setHours(chartStart.getHours() + index, 0, 0, 0);
+
+      const displayHour = labelDate.getHours() % 12 || 12;
+      const displayPeriod = labelDate.getHours() >= 12 ? 'pm' : 'am';
+
+      return {
+        x: toChartX(labelDate.getTime()),
+        label: `${displayHour}:00 ${displayPeriod}`,
+      };
+    });
+
+    return (
+      <svg width="100%" height="100%" viewBox="0 0 820 200" preserveAspectRatio="xMidYMid meet">
+        {/* Grid lines */}
+        <line x1="70" y1={chartTopY} x2="760" y2={chartTopY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={(chartTopY + chartBottomY) / 2} x2="760" y2={(chartTopY + chartBottomY) / 2} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartBottomY} x2="760" y2={chartBottomY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartTopY} x2="70" y2={chartBottomY} stroke="#E5E7EB" strokeWidth="2" />
+
+        {/* Y-axis labels */}
+        <text x="20" y={chartTopY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">
+          {hasValues ? `${maxValue.toFixed(1)} ${unitLabel}` : `-- ${unitLabel}`}
+        </text>
+        <text x="20" y={chartBottomY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">
+          {hasValues ? `${minValue.toFixed(1)} ${unitLabel}` : `-- ${unitLabel}`}
+        </text>
+
+        {/* Chart line (threshold coloring) */}
+        {segments.map((segment) => {
+          const fromPoint = plotted[segment.from];
+          const toPoint = plotted[segment.to];
+          if (!fromPoint || !toPoint) return null;
+
+          return (
+            <line
+              key={`segment-${segment.from}-${segment.to}`}
+              x1={fromPoint.x}
+              y1={fromPoint.y}
+              x2={toPoint.x}
+              y2={toPoint.y}
+              stroke={segment.color}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+            />
+          );
+        })}
+
+        {/* Data points */}
+        {plotted.map((point, index) => {
+          if (!point) return null;
+          const pointColor = point.value > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE;
+          return (
+            <circle key={index} cx={point.x} cy={point.y} r="5" fill={pointColor} stroke="#FFFFFF" strokeWidth="2" />
+          );
+        })}
+
+        {/* X-axis labels */}
+        {hourLabels.map((label, index) => (
+          <text key={index} x={label.x} y="175" fontSize="12" fill="#E5E7EB" textAnchor="middle">
+            {label.label}
+          </text>
+        ))}
+      </svg>
+    );
+  };
+
+  const renderWaterLevelStyleSensorGraph = (readings: WaterLevelReading[], unitLabel: string) => {
+    const chartTopY = 30;
+    const chartBottomY = 150;
+    const chartHeight = chartBottomY - chartTopY;
+
+    if (readings.length === 0) {
+      return (
+        <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="muted">No sensor data available</div>
+        </div>
+      );
+    }
+
+    const valueReadings = readings.filter((r) => typeof r.value === 'number');
+    const hasValues = valueReadings.length > 0;
+    if (!hasValues) {
+      return (
+        <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="muted">No sensor data available</div>
+        </div>
+      );
+    }
+    const maxValue = hasValues ? Math.max(...valueReadings.map((r) => r.value as number), 1) : 1;
+    const minValue = hasValues ? Math.min(...valueReadings.map((r) => r.value as number), 0) : 0;
+    const valueRange = maxValue - minValue || 1;
+
+    const chartEnd = new Date();
+    chartEnd.setSeconds(0, 0);
+    if (chartEnd.getMinutes() > 0) {
+      chartEnd.setHours(chartEnd.getHours() + 1, 0, 0, 0);
+    } else {
+      chartEnd.setMinutes(0, 0, 0);
+    }
+
+    const chartStart = new Date(chartEnd);
+    chartStart.setHours(chartEnd.getHours() - 6);
+
+    const chartStartMs = chartStart.getTime();
+    const chartEndMs = chartEnd.getTime();
+    const chartRangeMs = Math.max(chartEndMs - chartStartMs, 1);
+
+    const toChartX = (ts: number): number => {
+      const clampedTs = Math.min(Math.max(ts, chartStartMs), chartEndMs);
+      return 70 + (((clampedTs - chartStartMs) / chartRangeMs) * 690);
+    };
+
+    const SPIKE_THRESHOLD_CM = 20;
+    const SAFE_BLUE = '#7C88CA';
+    const ALERT_RED = '#FF4245';
+
+    const plotted = readings.map((reading, index) => {
+      if (typeof reading.value !== 'number') return null;
+      const ts = new Date(reading.timestamp).getTime();
+      const fallbackTs = chartStartMs + ((index / Math.max(readings.length - 1, 1)) * chartRangeMs);
+      const x = toChartX(Number.isFinite(ts) ? ts : fallbackTs);
+      const normalizedValue = ((reading.value as number) - minValue) / valueRange;
+      const y = chartBottomY - (normalizedValue * chartHeight);
+      return { x, y, value: reading.value as number };
+    });
+
+    const segments: Array<{ from: number; to: number; color: string }> = [];
+    let lastValidIndex = -1;
+
+    for (let i = 0; i < readings.length; i += 1) {
+      if (typeof readings[i].value !== 'number') continue;
+
+      if (lastValidIndex !== -1) {
+        const gapSize = i - lastValidIndex - 1;
+        if (gapSize <= 2) {
+          const fromPoint = plotted[lastValidIndex];
+          const toPoint = plotted[i];
+          if (fromPoint && toPoint) {
+            segments.push({
+              from: lastValidIndex,
+              to: i,
+              color: Math.max(fromPoint.value, toPoint.value) > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE,
+            });
+          }
+        }
+      }
+
+      lastValidIndex = i;
+    }
+
+    const hourLabels = Array.from({ length: 7 }, (_, index) => {
+      const labelDate = new Date(chartStart);
+      labelDate.setHours(chartStart.getHours() + index, 0, 0, 0);
+      const displayHour = labelDate.getHours() % 12 || 12;
+      const displayPeriod = labelDate.getHours() >= 12 ? 'pm' : 'am';
+      return {
+        x: toChartX(labelDate.getTime()),
+        label: `${displayHour}:00 ${displayPeriod}`,
+      };
+    });
+
+    return (
+      <svg width="100%" height="100%" viewBox="0 0 820 200" preserveAspectRatio="xMidYMid meet">
+        <line x1="70" y1={chartTopY} x2="760" y2={chartTopY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={(chartTopY + chartBottomY) / 2} x2="760" y2={(chartTopY + chartBottomY) / 2} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartBottomY} x2="760" y2={chartBottomY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartTopY} x2="70" y2={chartBottomY} stroke="#E5E7EB" strokeWidth="2" />
+
+        <text x="20" y={chartTopY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">
+          {hasValues ? `${maxValue.toFixed(1)} ${unitLabel}` : `-- ${unitLabel}`}
+        </text>
+        <text x="20" y={chartBottomY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">
+          {hasValues ? `${minValue.toFixed(1)} ${unitLabel}` : `-- ${unitLabel}`}
+        </text>
+
+        {segments.map((segment) => {
+          const fromPoint = plotted[segment.from];
+          const toPoint = plotted[segment.to];
+          if (!fromPoint || !toPoint) return null;
+          return (
+            <line
+              key={`segment-${segment.from}-${segment.to}`}
+              x1={fromPoint.x}
+              y1={fromPoint.y}
+              x2={toPoint.x}
+              y2={toPoint.y}
+              stroke={segment.color}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+            />
+          );
+        })}
+
+        {plotted.map((point, index) => {
+          if (!point) return null;
+          const pointColor = point.value > SPIKE_THRESHOLD_CM ? ALERT_RED : SAFE_BLUE;
+          return (
+            <circle key={index} cx={point.x} cy={point.y} r="5" fill={pointColor} stroke="#FFFFFF" strokeWidth="2" />
+          );
+        })}
+
+        {hourLabels.map((label, index) => (
+          <text key={index} x={label.x} y="175" fontSize="12" fill="#E5E7EB" textAnchor="middle">
+            {label.label}
+          </text>
+        ))}
+      </svg>
+    );
+  };
 
   const sensorGraphReadings = (sensor: SensorWithReadings): WaterLevelReading[] => {
+    const key = normalizeSensorTypeKey(sensor);
+    if (key === 'water_surface' || key === 'water_underground') {
+      const now = new Date();
+      now.setSeconds(0, 0);
+      if (now.getMinutes() > 0) {
+        now.setHours(now.getHours() + 1, 0, 0, 0);
+      } else {
+        now.setMinutes(0, 0, 0);
+      }
+
+      const chartEnd = now.getTime();
+      const windowMs = 6 * 60 * 60 * 1000;
+      const bucketMs = 30 * 60 * 1000;
+      const chartStart = chartEnd - windowMs;
+
+      const points = (sensor.readings || [])
+        .map((r) => {
+          const ts = new Date(r.time_stamp).getTime();
+          return {
+            ts,
+            value: Number(r.raw_value),
+          };
+        })
+        .filter((r) => Number.isFinite(r.ts) && Number.isFinite(r.value) && r.ts >= chartStart && r.ts <= chartEnd)
+        .sort((a, b) => a.ts - b.ts);
+
+      const sampled: WaterLevelReading[] = [];
+      let pointIndex = 0;
+
+      for (let i = 0; i <= windowMs / bucketMs; i += 1) {
+        const bucketEnd = chartStart + i * bucketMs;
+        const bucketStart = bucketEnd - bucketMs;
+        let latestInBucket: { ts: number; value: number } | null = null;
+
+        while (pointIndex < points.length && points[pointIndex].ts <= bucketEnd) {
+          if (points[pointIndex].ts >= bucketStart) {
+            latestInBucket = points[pointIndex];
+          }
+          pointIndex += 1;
+        }
+
+        const tsIso = new Date(bucketEnd).toISOString();
+        sampled.push({
+          hour: tsIso,
+          value: latestInBucket ? latestInBucket.value : null,
+          timestamp: tsIso,
+        });
+      }
+
+      return sampled;
+    }
+
     const now = Date.now();
-    const fourHoursAgo = now - 4 * 60 * 60 * 1000;
-    const points = (sensor.readings || [])
+    const oneHourMs = 60 * 60 * 1000;
+    const start = now - oneHourMs;
+
+    const allPoints = (sensor.readings || [])
       .map((r) => {
         const ts = new Date(r.time_stamp).getTime();
         return {
           ts,
-          iso: new Date(ts).toISOString(),
           value: Number(r.raw_value),
         };
       })
-      .filter((r) => Number.isFinite(r.ts) && Number.isFinite(r.value) && r.ts >= fourHoursAgo && r.ts <= now)
+      .filter((r) => Number.isFinite(r.ts) && Number.isFinite(r.value))
       .sort((a, b) => a.ts - b.ts);
 
-    const sampled = points.slice(-11).map((p) => ({
-      hour: p.iso,
-      value: p.value,
-      timestamp: p.iso,
-    }));
+    const points = allPoints.filter((r) => r.ts >= start && r.ts <= now);
 
-    // Keep the same graph style: append current-time tick.
-    const nowIso = new Date(now).toISOString();
-    return [...sampled, { hour: nowIso, value: null, timestamp: nowIso }];
+    if (points.length === 0) return [];
+
+    const bucketCount = 10;
+    const bucketMs = oneHourMs / bucketCount;
+    const sampled: WaterLevelReading[] = [];
+    let pointIndex = 0;
+
+    for (let i = 0; i <= bucketCount; i += 1) {
+      const bucketEnd = start + i * bucketMs;
+      const bucketStart = bucketEnd - bucketMs;
+      let latestInBucket: { ts: number; value: number } | null = null;
+
+      while (pointIndex < points.length && points[pointIndex].ts <= bucketEnd) {
+        if (points[pointIndex].ts >= bucketStart) {
+          latestInBucket = points[pointIndex];
+        }
+        pointIndex += 1;
+      }
+
+      const tsIso = new Date(bucketEnd).toISOString();
+      sampled.push({
+        hour: tsIso,
+        value: latestInBucket ? latestInBucket.value : null,
+        timestamp: tsIso,
+      });
+    }
+
+    return sampled;
   };
 
-  const sensorPowerState = (sensor: SensorWithReadings): { isOn: boolean; reason: string } => {
-    const statusRaw = (sensor.status || '').toLowerCase();
-    const connected =
-      statusRaw.includes('online') ||
-      statusRaw.includes('active') ||
-      statusRaw.includes('connected') ||
-      statusRaw.includes('on');
+  const normalizeSensorTypeKey = (
+    sensor: SensorWithReadings
+  ): CanonicalSensorKey | 'other' => {
+    const rawType = (sensor.type_name || '').trim().toLowerCase();
+    const compactType = rawType.replace(/[\s_-]/g, '');
+    const serial = (sensor.serial_no || '').trim().toLowerCase().replace(/[\s_-]/g, '');
 
-    const latestTs = sensor.readings?.[0]?.time_stamp ? new Date(sensor.readings[0].time_stamp).getTime() : null;
-    const hasRecentReading = latestTs !== null && Date.now() - latestTs <= 60 * 60 * 1000;
+    if (rawType === 'temperature') return 'temperature';
+    // AQ-02 ultrasonic is the surface water-level probe in this deployment.
+    if (serial.includes('aq02')) return 'water_surface';
+    // Sewer/underground probe serials are usually AQ-03.
+    if (serial.includes('aq03')) return 'water_underground';
+    if (rawType === 'water level') return 'water_surface';
+    if (rawType === 'sewage water level' || rawType === 'ultrasonic') return 'water_underground';
+    if (compactType === 'rainintensity' || compactType === 'aq04rainintensity' || serial === 'aq04rainintensity') {
+      return 'rain_intensity';
+    }
 
-    if (!connected) return { isOn: false, reason: 'Disconnected' };
-    if (!hasRecentReading) return { isOn: false, reason: 'No reading for 1h' };
-    return { isOn: true, reason: 'Reading' };
+    return 'other';
+  };
+
+  const normalizeSensorDisplayName = (sensor: SensorWithReadings): string => {
+    const key = normalizeSensorTypeKey(sensor);
+    if (key !== 'other') return SENSOR_DISPLAY_LABELS[key];
+
+    return (sensor.type_name || '').trim() || 'Sensor';
+  };
+
+  const renderGraphTitle = (sensor: SensorWithReadings): React.ReactNode => {
+    const key = normalizeSensorTypeKey(sensor);
+    if (key === 'water_underground') {
+      return (
+        <>
+          Water Level <strong>Underground</strong>
+        </>
+      );
+    }
+    if (key === 'water_surface') return 'Water Level Surface';
+    if (key === 'rain_intensity') return 'Rain Intensity';
+    if (key === 'temperature') return 'Temperature';
+    return normalizeSensorDisplayName(sensor);
   };
 
   const graphSensors = useMemo(
-    () =>
-      sensorsList.filter((sensor) => {
+    () => {
+      const filtered = sensorsList.filter((sensor) => {
         const type = sensor.type_name || '';
         const serial = sensor.serial_no || '';
         if (type === 'Power Outage') return false;
         if (type === 'Humidity') return false;
         if (serial === 'AQ-02-Ultrasonic') return false;
         return true;
-      }),
+      });
+
+      // Keep graph cards in the same visual order used by the dashboard sections.
+      return filtered.sort((a, b) => {
+        const aKey = normalizeSensorTypeKey(a);
+        const bKey = normalizeSensorTypeKey(b);
+        const aOrder = aKey === 'other' ? Number.MAX_SAFE_INTEGER : GRAPH_DISPLAY_ORDER.indexOf(aKey);
+        const bOrder = bKey === 'other' ? Number.MAX_SAFE_INTEGER : GRAPH_DISPLAY_ORDER.indexOf(bKey);
+        return aOrder - bOrder;
+      });
+    },
     [sensorsList]
   );
 
-  useEffect(() => {
-    if (graphSensors.length === 0) {
-      setVisibleGraphCount(0);
-      return;
+  const sensorCards = useMemo(() => {
+    const pickNewestByKey = new Map<CanonicalSensorKey, SensorWithReadings>();
+
+    const latestTs = (sensor: SensorWithReadings): number => {
+      const ts = sensor.readings?.[0]?.time_stamp;
+      if (!ts) return -1;
+      const parsed = new Date(ts).getTime();
+      return Number.isFinite(parsed) ? parsed : -1;
+    };
+
+    for (const sensor of sensorsList) {
+      const key = normalizeSensorTypeKey(sensor);
+      if (key === 'other') continue;
+
+      const current = pickNewestByKey.get(key);
+      if (!current || latestTs(sensor) > latestTs(current)) {
+        pickNewestByKey.set(key, sensor);
+      }
     }
-    setVisibleGraphCount(1);
-    let count = 1;
-    const interval = setInterval(() => {
-      count += 1;
-      setVisibleGraphCount(Math.min(count, graphSensors.length));
-      if (count >= graphSensors.length) clearInterval(interval);
-    }, 220);
-    return () => clearInterval(interval);
-  }, [graphSensors.length]);
+
+    return SENSOR_SECTION_ORDER
+      .map((key) => {
+        const sensor = pickNewestByKey.get(key);
+        return sensor ? { key, sensor } : null;
+      })
+      .filter((item): item is { key: CanonicalSensorKey; sensor: SensorWithReadings } => item !== null);
+  }, [sensorsList]);
+
+  const waterLevelGraphState = useMemo(() => {
+    const hasRecentReading = waterLevelReadings.some((reading) => typeof reading.value === 'number');
+    return hasRecentReading
+      ? { isOn: true, reason: 'Reading' }
+      : { isOn: false, reason: 'No reading for 6h' };
+  }, [waterLevelReadings]);
+
+  const graphsReady = sensorsLoadedOnce && waterLevelGraphLoadedOnce;
 
   const formatHourlyTime = (timeStr: string): string => {
     const date = new Date(timeStr);
     const hours = date.getHours();
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const displayHour = hours % 12 || 12;
-    return `${displayHour} ${ampm}`;
+    return `${displayHour}:${date.getMinutes().toString().padStart(2, '0')} ${ampm.toLowerCase()}`;
   };
 
   const formatDailyDate = (dateStr: string, index: number): string => {
@@ -740,7 +1203,7 @@ function DashboardPageContent() {
               </div>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 56, fontWeight: 900 }}>
-                  {temperature.value !== null ? `${Math.round(temperature.value)}°` : '--°'}
+                  {weatherTemperature !== null ? `${Math.round(weatherTemperature)}°` : '--°'}
                 </div>
                 <div style={{ opacity: 0.9 }}>
                   <svg width={48} height={28} viewBox="0 0 48 28" aria-hidden>
@@ -783,68 +1246,53 @@ function DashboardPageContent() {
               </div>
             </div>
 
-            <div className="two-panel-container dashboard-section">
+            <div className="dashboard-section">
               <div className="panel-inner" style={{ display: 'flex', flexDirection: 'column' }}>
-                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>Air Conditions</div>
+                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>Air conditions</div>
                 <div className="air-conditions-grid" style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Image src="/temperature.svg" alt="Real Feel" width={24} height={24} />
-                      <div className="muted" style={{ fontSize: 12 }}>Real Feel</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
+                      <Image src="/temperature.svg" alt="Temperature" width={24} height={24} />
+                      <div className="muted" style={{ fontSize: 12 }}>Real feel</div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 32 }}>
-                      {temperature.value !== null ? `${Math.round(temperature.value)}°` : '--°'}
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
+                      {realFeel !== null ? `${Math.round(realFeel)}°` : '--°'}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
+                      <Image src={RaindropSvg} alt="Precipitation" width={24} height={24} />
+                      <div className="muted" style={{ fontSize: 12 }}>Precipitation</div>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
+                      {precipitation !== null ? `${precipitation.toFixed(1)} mm` : '-- mm'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
                       <Image src="/wind.svg" alt="Wind" width={24} height={24} />
                       <div className="muted" style={{ fontSize: 12 }}>Wind</div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 32 }}>
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
                       {wind !== null ? `${wind.toFixed(1)} km/h` : '-- km/h'}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
                       <Image src="/Water_Drop.svg" alt="Humidity" width={24} height={24} />
                       <div className="muted" style={{ fontSize: 12 }}>Humidity</div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 32 }}>
-                      {humidity !== null ? `${humidity}%` : '--%'}
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
+                      {humidity !== null ? `${humidity} %` : '-- %'}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Image src="/water_level.svg" alt="Water Level" width={24} height={24} />
-                      <div className="muted" style={{ fontSize: 12 }}>Water Level</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', width: '100%' }}>
+                      <Image src={EyeSvg} alt="Visibility" width={24} height={24} />
+                      <div className="muted" style={{ fontSize: 12 }}>Visibility</div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 32 }}>
-                      {waterLevel.value !== null ? `${waterLevel.value.toFixed(1)} ${waterLevel.unit || 'cm'}` : '-- cm'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="panel-inner">
-                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>System Status</div>
-                <div className="system-status-grid">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Image src="/pipe.svg" alt="Infrastructure" width={24} height={24} />
-                      <div className="muted" style={{ fontSize: 12 }}>Infrastructure</div>
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 16, marginLeft: 32 }}>Stable</div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Image src="/raindrop.svg" alt="Rain Intensity" width={24} height={24} />
-                      <div className="muted" style={{ fontSize: 12 }}>Rain Intensity</div>
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 16, marginLeft: 32 }}>
-                      {rainIntensity.value !== null
-                        ? `${Number.isInteger(rainIntensity.value) ? rainIntensity.value : rainIntensity.value.toFixed(1)} ${rainIntensity.unit || 'mm'}`
-                        : '-- mm'}
+                    <div style={{ fontWeight: 700, fontSize: 18, marginLeft: 0, width: '100%', textAlign: 'center' }}>
+                      {visibility !== null ? `${visibility >= 1000 ? `${(visibility / 1000).toFixed(1)} km` : `${Math.round(visibility)} m`}` : '--'}
                     </div>
                   </div>
                 </div>
@@ -853,23 +1301,95 @@ function DashboardPageContent() {
 
             <div className="dashboard-section">
               <div className="panel-inner">
-                <div className="panel-title" style={{ fontSize: 14, marginBottom: 16 }}>Water Level</div>
-                <div style={{ width: '100%', height: 200, position: 'relative' }}>
-                  {renderWaterLevelGraph()}
-                </div>
+                <div className="panel-title" style={{ fontSize: 14, marginBottom: 12 }}>Sensor readings - {locationName}</div>
+                {(() => {
+                  if (sensorCards.length === 0 && !locationsLoading) {
+                    return <div className="muted" style={{ padding: 16 }}>{dbUnavailable ? 'Database unavailable.' : 'No sensors for this location.'}</div>;
+                  }
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                      {sensorCards.map(({ key, sensor }) => {
+                        const latest = sensor.readings?.[0];
+                        const value = latest ? Number(latest.raw_value) : null;
+                        const displayName = SENSOR_DISPLAY_LABELS[key];
+                        const displayValue = value !== null
+                          ? key === 'rain_intensity'
+                            ? `${Number.isInteger(value) ? value : value.toFixed(1)} ${sensor.unit || 'mm'}`
+                            : `${typeof value === 'number' && value % 1 !== 0 ? value.toFixed(1) : value}${sensor.unit ? ` ${sensor.unit}` : ''}`
+                          : '--';
+                        return (
+                          <div
+                            key={sensor.sensor_id}
+                            style={{
+                              padding: '10px 12px',
+                              background: 'rgba(255,255,255,0.015)',
+                              borderRadius: 8,
+                              border: '1px solid rgba(255,255,255,0.06)',
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{displayName}</div>
+                            <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: 0.1 }}>{displayValue}</div>
+                            {latest && (
+                              <div className="muted" style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
+                                {new Date(latest.time_stamp).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
-            {graphSensors.slice(0, visibleGraphCount).map((sensor, index) => {
-              const state = sensorPowerState(sensor);
-              const displayName = sensor.type_name ?? 'Sensor';
+            {!graphsReady && (
+              <div className="dashboard-section">
+                <div className="panel-inner">
+                  <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="muted">Loading sensor graphs...</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {graphsReady && (
+              <div className="dashboard-section">
+                <div className="panel-inner">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div className="panel-title" style={{ fontSize: 14 }}>Water Level Surface</div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: '4px 8px',
+                        borderRadius: 999,
+                        background: waterLevelGraphState.isOn ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+                        color: waterLevelGraphState.isOn ? '#86efac' : '#fca5a5',
+                      }}
+                    >
+                      {waterLevelGraphState.isOn ? 'ON' : 'OFF'} - {waterLevelGraphState.reason}
+                    </div>
+                  </div>
+                  <div style={{ width: '100%', height: 200, position: 'relative' }}>
+                    {renderWaterLevelGraph()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {graphsReady && graphSensors.map((sensor) => {
+              const displayName = renderGraphTitle(sensor);
               const graphReadings = sensorGraphReadings(sensor);
+              const sensorKey = normalizeSensorTypeKey(sensor);
+              const state = graphReadings.some((reading) => typeof reading.value === 'number')
+                ? { isOn: true, reason: 'Reading' }
+                : { isOn: false, reason: 'No reading for 6h' };
               return (
                 <div className="dashboard-section" key={`graph-${sensor.sensor_id}`}>
                   <div className="panel-inner">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <div>
-                        <div className="muted" style={{ fontSize: 10 }}>{sensor.serial_no ?? `ID ${sensor.sensor_id}`}</div>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{displayName}</div>
                       </div>
                       <div
@@ -886,72 +1406,26 @@ function DashboardPageContent() {
                       </div>
                     </div>
                     <div style={{ width: '100%', height: 200, position: 'relative' }}>
-                      {renderSensorGraph(graphReadings, sensor.unit || (sensor.type_name === 'Rain Intensity' ? 'mm' : 'cm'))}
+                      {(sensorKey === 'water_surface' || sensorKey === 'water_underground')
+                        ? renderWaterLevelStyleSensorGraph(
+                          graphReadings,
+                          sensor.unit || 'cm'
+                        )
+                        : renderSensorGraph(
+                          graphReadings,
+                          sensor.unit || (
+                            sensorKey === 'rain_intensity'
+                              ? 'mm'
+                              : sensorKey === 'temperature'
+                                ? '°C'
+                                : 'cm'
+                          )
+                        )}
                     </div>
-                    {visibleGraphCount < graphSensors.length && sensor === graphSensors[visibleGraphCount - 1] && (
-                      <div className="muted" style={{ paddingTop: 8, textAlign: 'center', fontSize: 12 }}>
-                        Loading graphs...
-                      </div>
-                    )}
                   </div>
                 </div>
               );
             })}
-
-            <div className="dashboard-section">
-              <div className="panel-inner">
-                <div className="panel-title" style={{ fontSize: 14, marginBottom: 8 }}>Sensors – Al Qatif</div>
-                <p className="muted" style={{ fontSize: 12, marginBottom: 16 }}>Real Feel, Water Level, Rain Intensity, Sewage Water Level.</p>
-                {(() => {
-                  const fourTypes = ['Temperature', 'Water Level', 'Ultrasonic', 'Rain Intensity', 'Sewage Water Level'];
-                  const displayNames: Record<string, string> = {
-                    'Temperature': 'Real Feel',
-                    'Water Level': 'Water Level',
-                    'Ultrasonic': 'Water Level',
-                    'Sewage Water Level': 'Sewage Water Level',
-                    'Rain Intensity': 'Rain Intensity',
-                  };
-                  const filtered = sensorsList.filter((s) => fourTypes.includes(s.type_name || ''));
-                  if (filtered.length === 0 && !locationsLoading) {
-                    return <div className="muted" style={{ padding: 16 }}>{dbUnavailable ? 'Database unavailable.' : 'No sensors for this location.'}</div>;
-                  }
-                  return (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                      {filtered.map((sensor) => {
-                        const latest = sensor.readings?.[0];
-                        const value = latest ? Number(latest.raw_value) : null;
-                        const displayName = displayNames[sensor.type_name || ''] ?? sensor.type_name ?? 'Sensor';
-                        const displayValue = value !== null
-                          ? sensor.type_name === 'Rain Intensity'
-                            ? `${Number.isInteger(value) ? value : value.toFixed(1)} ${sensor.unit || 'mm'}`
-                            : `${typeof value === 'number' && value % 1 !== 0 ? value.toFixed(1) : value}${sensor.unit ? ` ${sensor.unit}` : ''}`
-                          : '--';
-                        return (
-                          <div
-                            key={sensor.sensor_id}
-                            style={{
-                              padding: '10px 12px',
-                              background: 'rgba(255,255,255,0.015)',
-                              borderRadius: 8,
-                              border: '1px solid rgba(255,255,255,0.06)',
-                            }}
-                          >
-                            <div className="muted" style={{ fontSize: 10, marginBottom: 2, opacity: 0.75 }}>{sensor.serial_no ?? `ID ${sensor.sensor_id}`}</div>
-                            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{displayName}</div>
-                            <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: 0.1 }}>{displayValue}</div>
-                            {latest && (
-                              <div className="muted" style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
-                                {new Date(latest.time_stamp).toLocaleString()}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
 
           </div>
 
