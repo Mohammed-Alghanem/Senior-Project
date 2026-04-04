@@ -177,34 +177,21 @@ function HourCard({
 
 function CountdownTimer({
   predictedHazardTs,
-  predictionId,
   onShowCaution,
-  onShowFlood,
 }: {
   predictedHazardTs: string | null;
-  predictionId: string | null;
   onShowCaution: () => void;
-  onShowFlood: () => void;
 }) {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const cautionShownRef = useRef(false);
-  const floodShownRef = useRef(false);
   const onShowCautionRef = useRef(onShowCaution);
-  const onShowFloodRef = useRef(onShowFlood);
 
   useEffect(() => {
     onShowCautionRef.current = onShowCaution;
-    onShowFloodRef.current = onShowFlood;
-  }, [onShowCaution, onShowFlood]);
+  }, [onShowCaution]);
 
   useEffect(() => {
     cautionShownRef.current = false;
-    floodShownRef.current = false;
-
-    if (predictionId && typeof window !== 'undefined') {
-      const alreadyShown = window.localStorage.getItem(`flood-popup-shown:${predictionId}`) === '1';
-      floodShownRef.current = alreadyShown;
-    }
 
     if (!predictedHazardTs) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -214,7 +201,7 @@ function CountdownTimer({
     const hazardMs = new Date(predictedHazardTs).getTime();
     const initial = Math.max(0, Math.floor((hazardMs - Date.now()) / 1000));
     setTimeLeft(initial);
-  }, [predictedHazardTs, predictionId]);
+  }, [predictedHazardTs]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -229,18 +216,11 @@ function CountdownTimer({
         cautionShownRef.current = true;
         onShowCautionRef.current();
       }
-      if (next === 0 && !floodShownRef.current) {
-        floodShownRef.current = true;
-        if (predictionId && typeof window !== 'undefined') {
-          window.localStorage.setItem(`flood-popup-shown:${predictionId}`, '1');
-        }
-        onShowFloodRef.current();
-      }
       setTimeLeft(next);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [predictedHazardTs, predictionId]);
+  }, [predictedHazardTs]);
 
   const isSafe = timeLeft === null || timeLeft === 0;
   const hours = timeLeft !== null ? Math.floor(timeLeft / 3600) : 0;
@@ -319,8 +299,6 @@ function DashboardPageContent() {
 
   // Popups
   const [showCautionPopup, setShowCautionPopup] = useState(false);
-  const [showFloodPopup, setShowFloodPopup] = useState(false);
-  const floodPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchParams = useSearchParams();
   const urlLocationId = searchParams.get('location_id');
@@ -507,26 +485,6 @@ function DashboardPageContent() {
     const forecastWeatherInterval = setInterval(fetchForecastWeather, 300000);
     return () => clearInterval(forecastWeatherInterval);
   }, [lat, lon]);
-
-  useEffect(() => {
-    return () => {
-      if (floodPopupTimeoutRef.current) {
-        clearTimeout(floodPopupTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handleShowFloodPopup = () => {
-    setShowFloodPopup(true);
-    if (floodPopupTimeoutRef.current) {
-      clearTimeout(floodPopupTimeoutRef.current);
-    }
-    // Keep flood alert visible for 1 minute once countdown hits zero.
-    floodPopupTimeoutRef.current = setTimeout(() => {
-      setShowFloodPopup(false);
-      floodPopupTimeoutRef.current = null;
-    }, 60000);
-  };
 
   const formatTimeRemaining = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -1160,19 +1118,6 @@ function DashboardPageContent() {
         />
       )}
 
-      {showFloodPopup && (
-        <FloodPopup
-          type="flood"
-          onClose={() => {
-            setShowFloodPopup(false);
-            if (floodPopupTimeoutRef.current) {
-              clearTimeout(floodPopupTimeoutRef.current);
-              floodPopupTimeoutRef.current = null;
-            }
-          }}
-        />
-      )}
-
       <main className="dashboard-main" style={{ maxWidth: 1400, margin: '18px auto', width: '100%', padding: '0 18px' }}>
         {dbUnavailable && (
           <div
@@ -1442,9 +1387,7 @@ function DashboardPageContent() {
               <div className="panel-title">Count Down</div>
               <CountdownTimer
                 predictedHazardTs={prediction?.predicted_hazard_ts ?? null}
-                predictionId={prediction?.prediction_id ?? null}
                 onShowCaution={() => setShowCautionPopup(true)}
-                onShowFlood={handleShowFloodPopup}
               />
             </div>
 
