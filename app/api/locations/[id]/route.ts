@@ -18,23 +18,29 @@ export async function GET(
 
   try {
     const locationId = BigInt(id);
-    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    // Graph windows are rounded to clock boundaries on the client, so fetch an extra hour
+    // to avoid dropping the earliest visible bucket near window edges.
+    const sevenHoursAgo = new Date(Date.now() - 7 * 60 * 60 * 1000);
     const location = await prisma.location.findUnique({
       where: { location_id: locationId },
       include: {
         sensor_nodes: {
+          orderBy: { node_id: 'asc' },
           include: {
             sensors: {
+              orderBy: { sensor_id: 'asc' },
               include: {
                 sensor_type: true,
                 readings: {
                   where: {
                     time_stamp: {
-                      gte: sixHoursAgo,
+                      gte: sevenHoursAgo,
                     },
                   },
                   orderBy: { time_stamp: 'desc' },
-                  take: 720,
+                  // Keep a deeper history window so early buckets don't vanish
+                  // on high-frequency sensors between polling cycles.
+                  take: 10000,
                 },
               },
             },
