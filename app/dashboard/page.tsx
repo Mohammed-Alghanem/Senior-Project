@@ -496,6 +496,10 @@ function DashboardPageContent() {
   };
 
   const renderSensorGraph = (readings: WaterLevelReading[], unitLabel: string) => {
+    const chartTopY = 30;
+    const chartBottomY = 150;
+    const chartHeight = chartBottomY - chartTopY;
+
     if (readings.length === 0) {
       return (
         <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -521,36 +525,58 @@ function DashboardPageContent() {
     const minValue = Math.min(...valueReadings.map((r) => r.value as number), 0);
     const valueRange = maxValue - minValue || 1;
 
+    const chartEnd = new Date();
+    chartEnd.setSeconds(0, 0);
+    if (chartEnd.getMinutes() > 0) {
+      chartEnd.setHours(chartEnd.getHours() + 1, 0, 0, 0);
+    } else {
+      chartEnd.setMinutes(0, 0, 0);
+    }
+
+    const chartStart = new Date(chartEnd);
+    chartStart.setHours(chartEnd.getHours() - 6);
+
+    const chartStartMs = chartStart.getTime();
+    const chartEndMs = chartEnd.getTime();
+    const chartRangeMs = Math.max(chartEndMs - chartStartMs, 1);
+
+    const toChartX = (ts: number): number => {
+      const clampedTs = Math.min(Math.max(ts, chartStartMs), chartEndMs);
+      return 70 + (((clampedTs - chartStartMs) / chartRangeMs) * 690);
+    };
+
     const plotted = readings.map((reading, index) => {
       if (typeof reading.value !== 'number') return null;
-      const x = 70 + (index * (690 / Math.max(readings.length - 1, 1)));
+      const ts = new Date(reading.timestamp).getTime();
+      const fallbackTs = chartStartMs + ((index / Math.max(readings.length - 1, 1)) * chartRangeMs);
+      const x = toChartX(Number.isFinite(ts) ? ts : fallbackTs);
       const normalizedValue = ((reading.value as number) - minValue) / valueRange;
-      const y = 150 - (normalizedValue * 120); // Invert Y axis
+      const y = chartBottomY - (normalizedValue * chartHeight);
       return { x, y, value: reading.value as number };
     });
 
-    const hourLabels = readings.map((reading, index) => {
-      const date = new Date(reading.timestamp);
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const displayHour = hours % 12 || 12;
+    const hourLabels = Array.from({ length: 7 }, (_, index) => {
+      const labelDate = new Date(chartStart);
+      labelDate.setHours(chartStart.getHours() + index, 0, 0, 0);
+      const displayHour = labelDate.getHours() % 12 || 12;
+      const displayPeriod = labelDate.getHours() >= 12 ? 'pm' : 'am';
       return {
-        x: 70 + (index * (690 / Math.max(readings.length - 1, 1))),
-        label: `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`,
+        x: toChartX(labelDate.getTime()),
+        label: `${displayHour}:00 ${displayPeriod}`,
       };
     });
 
     return (
       <svg width="100%" height="100%" viewBox="0 0 820 200" preserveAspectRatio="xMidYMid meet">
         {/* Grid lines */}
-        <line x1="70" y1="60" x2="760" y2="60" stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
-        <line x1="70" y1="120" x2="760" y2="120" stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
-        <line x1="70" y1="30" x2="70" y2="150" stroke="#E5E7EB" strokeWidth="2" />
+        <line x1="70" y1={chartTopY} x2="760" y2={chartTopY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={(chartTopY + chartBottomY) / 2} x2="760" y2={(chartTopY + chartBottomY) / 2} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartBottomY} x2="760" y2={chartBottomY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+        <line x1="70" y1={chartTopY} x2="70" y2={chartBottomY} stroke="#E5E7EB" strokeWidth="2" />
 
         {/* Y-axis labels */}
-        <text x="20" y="65" fontSize="13" fill="#E5E7EB">{maxValue.toFixed(1)} {unitLabel}</text>
-        <text x="20" y="125" fontSize="13" fill="#E5E7EB">{minValue.toFixed(1)} {unitLabel}</text>
+        <text x="20" y={chartTopY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">{maxValue.toFixed(1)} {unitLabel}</text>
+        <text x="20" y={chartBottomY} fontSize="13" fill="#E5E7EB" dominantBaseline="middle">{minValue.toFixed(1)} {unitLabel}</text>
 
         {/* Chart line (threshold coloring) */}
         {plotted.map((point, index) => {
@@ -940,9 +966,18 @@ function DashboardPageContent() {
       return sampled;
     }
 
-    const now = Date.now();
-    const oneHourMs = 60 * 60 * 1000;
-    const start = now - oneHourMs;
+    const now = new Date();
+    now.setSeconds(0, 0);
+    if (now.getMinutes() > 0) {
+      now.setHours(now.getHours() + 1, 0, 0, 0);
+    } else {
+      now.setMinutes(0, 0, 0);
+    }
+
+    const chartEnd = now.getTime();
+    const windowMs = 6 * 60 * 60 * 1000;
+    const bucketMs = 60 * 60 * 1000;
+    const chartStart = chartEnd - windowMs;
 
     const allPoints = (sensor.readings || [])
       .map((r) => {
@@ -955,17 +990,12 @@ function DashboardPageContent() {
       .filter((r) => Number.isFinite(r.ts) && Number.isFinite(r.value))
       .sort((a, b) => a.ts - b.ts);
 
-    const points = allPoints.filter((r) => r.ts >= start && r.ts <= now);
-
-    if (points.length === 0) return [];
-
-    const bucketCount = 10;
-    const bucketMs = oneHourMs / bucketCount;
+    const points = allPoints.filter((r) => r.ts >= chartStart && r.ts <= chartEnd);
     const sampled: WaterLevelReading[] = [];
     let pointIndex = 0;
 
-    for (let i = 0; i <= bucketCount; i += 1) {
-      const bucketEnd = start + i * bucketMs;
+    for (let i = 0; i <= windowMs / bucketMs; i += 1) {
+      const bucketEnd = chartStart + i * bucketMs;
       const bucketStart = bucketEnd - bucketMs;
       let latestInBucket: { ts: number; value: number } | null = null;
 
@@ -1030,28 +1060,32 @@ function DashboardPageContent() {
     return normalizeSensorDisplayName(sensor);
   };
 
-  const graphSensors = useMemo(
-    () => {
-      const filtered = sensorsList.filter((sensor) => {
-        const type = sensor.type_name || '';
-        const serial = sensor.serial_no || '';
-        if (type === 'Power Outage') return false;
-        if (type === 'Humidity') return false;
-        if (serial === 'AQ-02-Ultrasonic') return false;
-        return true;
-      });
+  const graphSensors = useMemo(() => {
+    const pickNewestByKey = new Map<CanonicalSensorKey, SensorWithReadings>();
 
-      // Keep graph cards in the same visual order used by the dashboard sections.
-      return filtered.sort((a, b) => {
-        const aKey = normalizeSensorTypeKey(a);
-        const bKey = normalizeSensorTypeKey(b);
-        const aOrder = aKey === 'other' ? Number.MAX_SAFE_INTEGER : GRAPH_DISPLAY_ORDER.indexOf(aKey);
-        const bOrder = bKey === 'other' ? Number.MAX_SAFE_INTEGER : GRAPH_DISPLAY_ORDER.indexOf(bKey);
-        return aOrder - bOrder;
-      });
-    },
-    [sensorsList]
-  );
+    const latestTs = (sensor: SensorWithReadings): number => {
+      const ts = sensor.readings?.[0]?.time_stamp;
+      if (!ts) return -1;
+      const parsed = new Date(ts).getTime();
+      return Number.isFinite(parsed) ? parsed : -1;
+    };
+
+    for (const sensor of sensorsList) {
+      const key = normalizeSensorTypeKey(sensor);
+      // Surface water has a dedicated graph card sourced from /api/water-level-graph.
+      if (key === 'other' || key === 'water_surface') continue;
+
+      const current = pickNewestByKey.get(key);
+      if (!current || latestTs(sensor) > latestTs(current)) {
+        pickNewestByKey.set(key, sensor);
+      }
+    }
+
+    return GRAPH_DISPLAY_ORDER
+      .filter((key): key is Exclude<CanonicalSensorKey, 'water_surface'> => key !== 'water_surface')
+      .map((key) => pickNewestByKey.get(key))
+      .filter((sensor): sensor is SensorWithReadings => sensor !== undefined);
+  }, [sensorsList]);
 
   const sensorCards = useMemo(() => {
     const pickNewestByKey = new Map<CanonicalSensorKey, SensorWithReadings>();
