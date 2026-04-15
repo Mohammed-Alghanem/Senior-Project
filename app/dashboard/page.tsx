@@ -1335,7 +1335,7 @@ function DashboardPageContent() {
                     </div>
                   </div>
                   <div style={{ width: '100%', height: 200, position: 'relative' }}>
-                    {renderWaterLevelGraph(undergroundWaterReadings, undergroundWaterSensor.unit || 'cm')}
+                    {renderWaterLevelGraph(undergroundWaterReadings, 'cm')}
                   </div>
                 </div>
               </div>
