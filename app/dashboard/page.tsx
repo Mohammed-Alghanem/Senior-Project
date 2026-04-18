@@ -301,6 +301,9 @@ function DashboardPageContent() {
   // Use first location from API, or location_id from URL (e.g. when redirected from /city/3) so Al Qatif data is shown
   const locationId = locations.length > 0 ? String(locations[0].location_id) : (urlLocationId || null);
   const locationName = locations.length > 0 ? (locations[0].city || locations[0].name || 'Location') : (urlLocationId ? 'Al Qatif' : 'Location');
+  const hasActivePredictionCountdown = Boolean(
+    prediction?.predicted_hazard_ts && new Date(prediction.predicted_hazard_ts).getTime() > Date.now()
+  );
 
   const coords = locations.length > 0 && locations[0].coordinates
     ? locations[0].coordinates.trim().split(',').map((s) => parseFloat(s.trim()))
@@ -382,6 +385,7 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!locationId) return;
+    if (hasActivePredictionCountdown) return;
     const pollMs = 7000;
 
     const fetchPrediction = async () => {
@@ -399,7 +403,7 @@ function DashboardPageContent() {
     fetchPrediction();
     const predictionInterval = setInterval(fetchPrediction, pollMs);
     return () => clearInterval(predictionInterval);
-  }, [locationId]);
+  }, [locationId, hasActivePredictionCountdown]);
 
   useEffect(() => {
     const fetchCurrentWeather = async () => {
