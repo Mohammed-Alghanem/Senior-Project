@@ -287,6 +287,9 @@ function DashboardPageContent() {
 
   // Prediction
   const [prediction, setPrediction] = useState<Prediction | null>(null);
+  const [predictionPollingStopped, setPredictionPollingStopped] = useState(false);
+  const predictionPollingStoppedRef = useRef(false);
+  const lastPopupPredictionIdRef = useRef<string | null>(null);
 
   // Per-sensor data (Al Qatif): each sensor and its readings for correct display
   const [sensorsList, setSensorsList] = useState<SensorWithReadings[]>([]);
@@ -298,12 +301,22 @@ function DashboardPageContent() {
 
   const searchParams = useSearchParams();
   const urlLocationId = searchParams.get('location_id');
+  const preferredLocation = locations.find((loc) => String(loc.location_id) === '4') ?? null;
   // Use first location from API, or location_id from URL (e.g. when redirected from /city/3) so Al Qatif data is shown
-  const locationId = locations.length > 0 ? String(locations[0].location_id) : (urlLocationId || null);
-  const locationName = locations.length > 0 ? (locations[0].city || locations[0].name || 'Location') : (urlLocationId ? 'Al Qatif' : 'Location');
+  const locationId = urlLocationId || (preferredLocation ? String(preferredLocation.location_id) : (locations.length > 0 ? String(locations[0].location_id) : null));
+  const locationName = preferredLocation
+    ? (preferredLocation.city || preferredLocation.name || 'Location')
+    : (locations.length > 0 ? (locations[0].city || locations[0].name || 'Location') : (urlLocationId ? 'Al Qatif' : 'Location'));
   const hasActivePredictionCountdown = Boolean(
     prediction?.predicted_hazard_ts && new Date(prediction.predicted_hazard_ts).getTime() > Date.now()
   );
+
+  useEffect(() => {
+    if (hasActivePredictionCountdown) {
+      setPredictionPollingStopped(true);
+      predictionPollingStoppedRef.current = true;
+    }
+  }, [hasActivePredictionCountdown]);
 
   const coords = locations.length > 0 && locations[0].coordinates
     ? locations[0].coordinates.trim().split(',').map((s) => parseFloat(s.trim()))
@@ -331,6 +344,7 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!locationId) return;
+    if (hasActivePredictionCountdown) return;
     const pollMs = 7000;
     const fetchSensorsForLocation = async () => {
       try {
@@ -357,6 +371,7 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!locationId) return;
+    if (hasActivePredictionCountdown) return;
     const pollMs = 7000;
 
     const fetchSensorData = async () => {
@@ -386,24 +401,52 @@ function DashboardPageContent() {
   useEffect(() => {
     if (!locationId) return;
     if (hasActivePredictionCountdown) return;
+    if (predictionPollingStopped) return;
     const pollMs = 7000;
+    const abortController = new AbortController();
 
     const fetchPrediction = async () => {
+      if (hasActivePredictionCountdown || predictionPollingStoppedRef.current) return;
       try {
-        const res = await fetch(`/api/predictions?location_id=${locationId}`);
+        const res = await fetch(`/api/predictions?location_id=${locationId}`, { signal: abortController.signal });
         if (res.ok) {
           const data = await res.json();
-          setPrediction(data.prediction);
+          const isHighRisk = (data?.prediction?.risk_level ?? '').toString().trim().toLowerCase() === 'high';
+          if (!isHighRisk) {
+            setPrediction(null);
+            return;
+          }
+
+          const incomingPrediction = data.prediction as Prediction;
+          const incomingPredictionId = String(incomingPrediction.prediction_id);
+          const incomingHazardTsMs = new Date(incomingPrediction.predicted_hazard_ts).getTime();
+          const incomingHasActiveCountdown = Number.isFinite(incomingHazardTsMs) && incomingHazardTsMs > Date.now();
+
+          if (incomingHasActiveCountdown) {
+            predictionPollingStoppedRef.current = true;
+            setPredictionPollingStopped(true);
+          }
+
+          if (incomingHasActiveCountdown && !hasActivePredictionCountdown && lastPopupPredictionIdRef.current !== incomingPredictionId) {
+            setShowCautionPopup(true);
+            lastPopupPredictionIdRef.current = incomingPredictionId;
+          }
+
+          setPrediction(incomingPrediction);
         }
       } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         console.error('Error fetching prediction', err);
       }
     };
 
     fetchPrediction();
     const predictionInterval = setInterval(fetchPrediction, pollMs);
-    return () => clearInterval(predictionInterval);
-  }, [locationId, hasActivePredictionCountdown]);
+    return () => {
+      abortController.abort();
+      clearInterval(predictionInterval);
+    };
+  }, [locationId, hasActivePredictionCountdown, predictionPollingStopped]);
 
   useEffect(() => {
     const fetchCurrentWeather = async () => {
