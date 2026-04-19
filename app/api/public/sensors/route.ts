@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isDbUnavailableError } from '@/lib/db-error';
 
 const DEFAULT_LOCATION_ID = 4;
+const FEED_CACHE_TTL_MS = 5000;
+const feedCache = new Map<string, { expiresAt: number; payload: unknown }>();
 export const dynamic = 'force-dynamic';
 
 function withCors(response: NextResponse) {
@@ -22,6 +25,17 @@ type SensorItem = {
   unit: string | null;
   latest_value: number | null;
   latest_timestamp: string | null;
+};
+
+type LatestReadingRow = {
+  sensor_id: bigint;
+  node_id: bigint | null;
+  serial_no: string | null;
+  status: string | null;
+  type_name: string | null;
+  unit: string | null;
+  raw_value: number | null;
+  time_stamp: Date | null;
 };
 
 function pickByType(items: SensorItem[], names: string[]) {
@@ -57,52 +71,63 @@ export async function GET(request: Request) {
   try {
     const locationId = BigInt(locationIdRaw);
 
-    const location = await prisma.location.findUnique({
-      where: { location_id: locationId },
-      select: {
-        location_id: true,
-        name: true,
-        city: true,
-        country: true,
-        coordinates: true,
-      },
-    });
+    const cached = feedCache.get(locationIdRaw);
+    if (cached && cached.expiresAt > Date.now()) {
+      return withCors(NextResponse.json(cached.payload));
+    }
+
+    const [location, rows] = await Promise.all([
+      prisma.location.findUnique({
+        where: { location_id: locationId },
+        select: {
+          location_id: true,
+          name: true,
+          city: true,
+          country: true,
+          coordinates: true,
+        },
+      }),
+      prisma.$queryRaw<LatestReadingRow[]>(Prisma.sql`
+        SELECT
+          s.sensor_id,
+          s.node_id,
+          s.serial_no,
+          s.status,
+          st.type_name,
+          st.unit,
+          lr.raw_value,
+          lr.time_stamp
+        FROM public.sensor s
+        JOIN public.sensor_node sn ON sn.node_id = s.node_id
+        LEFT JOIN public.sensor_type st ON st.sensor_type_id = s.sensor_type_id
+        LEFT JOIN LATERAL (
+          SELECT sr.raw_value, sr.time_stamp
+          FROM public.sensor_readings_table sr
+          WHERE sr.sensor_id = s.sensor_id
+          ORDER BY sr.time_stamp DESC
+          LIMIT 1
+        ) lr ON TRUE
+        WHERE sn.location_id = ${locationId}
+        ORDER BY s.sensor_id ASC
+      `),
+    ]);
 
     if (!location) {
       return withCors(NextResponse.json({ error: 'Location not found' }, { status: 404 }));
     }
 
-    const sensors = await prisma.sensor.findMany({
-      where: {
-        node: { location_id: locationId },
-      },
-      select: {
-        sensor_id: true,
-        node_id: true,
-        serial_no: true,
-        status: true,
-        sensor_type: { select: { type_name: true, unit: true } },
-        readings: {
-          orderBy: { time_stamp: 'desc' },
-          take: 1,
-          select: { raw_value: true, time_stamp: true },
-        },
-      },
-      orderBy: { sensor_id: 'asc' },
-    });
-
-    const items: SensorItem[] = sensors.map((sensor) => ({
-      sensor_id: String(sensor.sensor_id),
-      node_id: sensor.node_id !== null ? String(sensor.node_id) : null,
-      serial_no: sensor.serial_no,
-      status: sensor.status,
-      type_name: sensor.sensor_type?.type_name ?? null,
-      unit: sensor.sensor_type?.unit ?? null,
-      latest_value: sensor.readings[0]?.raw_value ?? null,
-      latest_timestamp: sensor.readings[0]?.time_stamp?.toISOString() ?? null,
+    const items: SensorItem[] = rows.map((row) => ({
+      sensor_id: String(row.sensor_id),
+      node_id: row.node_id !== null ? String(row.node_id) : null,
+      serial_no: row.serial_no,
+      status: row.status,
+      type_name: row.type_name,
+      unit: row.unit,
+      latest_value: row.raw_value,
+      latest_timestamp: row.time_stamp?.toISOString() ?? null,
     }));
 
-    const response = NextResponse.json({
+    const payload = {
       location: {
         location_id: String(location.location_id),
         name: location.name,
@@ -119,7 +144,14 @@ export async function GET(request: Request) {
       sensors: items,
       count: items.length,
       generated_at: new Date().toISOString(),
+    };
+
+    feedCache.set(locationIdRaw, {
+      expiresAt: Date.now() + FEED_CACHE_TTL_MS,
+      payload,
     });
+
+    const response = NextResponse.json(payload);
 
     return withCors(response);
   } catch (error) {
