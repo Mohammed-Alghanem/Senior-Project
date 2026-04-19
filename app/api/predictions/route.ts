@@ -16,13 +16,12 @@ export async function GET(request: Request) {
     const prediction = await prisma.prediction.findFirst({
       where: {
         location_id: BigInt(locationId),
-        predicted_hazard_ts: {
-          gte: now,
+        risk_level: {
+          equals: 'high',
+          mode: 'insensitive',
         },
       },
-      orderBy: {
-        predicted_hazard_ts: 'asc',
-      },
+      orderBy: [{ time_stamp: 'desc' }, { prediction_id: 'desc' }],
     });
 
     if (!prediction || !prediction.predicted_hazard_ts) {
