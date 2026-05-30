@@ -312,5 +312,5 @@ All 5 constraints verified; 100% Tier-1 critical hotspot coverage achieved.
 
 ## 📄 Course
 
-**EE 411 / Senior Design Project II**
+**COE412/ICS414/SWE412/ISE412 / Senior Design Project II**
 King Fahd University of Petroleum & Minerals (KFUPM) · Team M060 · Term 252
